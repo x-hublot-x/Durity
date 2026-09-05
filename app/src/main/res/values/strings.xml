@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Durity</string>
+    <string name="accessibility_service_description">Блокировка приложений по таймеру и контроль YouTube Shorts</string>
+</resources>
