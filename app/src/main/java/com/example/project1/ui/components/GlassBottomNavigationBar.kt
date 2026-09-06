@@ -1,6 +1,9 @@
 package com.example.project1.ui.components
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -148,7 +151,7 @@ fun GlassBottomNavigationBar(
                     .padding(horizontal = 6.dp, vertical = 6.dp),
                 contentAlignment = Alignment.CenterStart
             ) {
-                // Скользящая пилюля активной вкладки
+                // Скользящая пилюля активной вкладки с эффектом лупы
                 Box(
                     modifier = Modifier
                         .offset(x = offDp)
@@ -171,28 +174,89 @@ fun GlassBottomNavigationBar(
                                 )
                         )
                     } else {
-                        // Тематический стиль:
-                        // Жидкая стеклянная капля со сдержанным мягким свечением (-20% яркости)
+                        // ── Тематический стиль: Эффект линзы-лупы (увеличение ~1.48x под пилюлей) ──
+                        if (currentStyle.drawableRes != null) {
+                            val pivotXFrac = ((6.dp + offDp + wDp / 2) / 340.dp).coerceIn(0f, 1f)
+                            val pivotYFrac = 0.5f
+
+                            // Слой увеличенного фонового изображения (лупа)
+                            Image(
+                                painter = painterResource(id = currentStyle.drawableRes),
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .requiredSize(width = 340.dp, height = 64.dp)
+                                    .offset(x = -(6.dp + offDp), y = -6.dp)
+                                    .graphicsLayer {
+                                        scaleX = 1.48f
+                                        scaleY = 1.48f
+                                        transformOrigin = TransformOrigin(pivotXFrac, pivotYFrac)
+                                    }
+                            )
+
+                            // Если анимированный стиль — также проецируем анимацию с увеличением
+                            if (currentStyle.isAnimated) {
+                                Box(
+                                    modifier = Modifier
+                                        .requiredSize(width = 340.dp, height = 64.dp)
+                                        .offset(x = -(6.dp + offDp), y = -6.dp)
+                                        .graphicsLayer {
+                                            scaleX = 1.48f
+                                            scaleY = 1.48f
+                                            transformOrigin = TransformOrigin(pivotXFrac, pivotYFrac)
+                                        }
+                                ) {
+                                    AnimatedBottomBarEffect(
+                                        style = currentStyle,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
+                            }
+
+                            // Мягкое контрастное затемнение под лупой для четкости текста
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color.Black.copy(alpha = 0.25f))
+                            )
+
+                            // Сферическое преломление лупы (радиальное затемнение по краям и блик в центре)
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(
+                                        brush = Brush.radialGradient(
+                                            colors = listOf(
+                                                Color.White.copy(alpha = 0.16f),
+                                                Color.Transparent,
+                                                Color.Black.copy(alpha = 0.32f)
+                                            )
+                                        )
+                                    )
+                            )
+                        }
+
+                        // Стеклянный градиент и спекулярный контур линзы
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .background(Color.White.copy(alpha = 0.11f))
+                                .background(Color.White.copy(alpha = 0.08f))
                                 .background(
                                     brush = Brush.verticalGradient(
                                         listOf(
-                                            Color.White.copy(alpha = 0.22f),
-                                            Color.White.copy(alpha = 0.03f),
+                                            Color.White.copy(alpha = 0.25f),
+                                            Color.White.copy(alpha = 0.04f),
                                             Color.Transparent,
-                                            Color.White.copy(alpha = 0.08f)
+                                            Color.White.copy(alpha = 0.10f)
                                         )
                                     )
                                 )
                                 .border(
-                                    width = 1.dp,
+                                    width = 1.2.dp,
                                     brush = Brush.verticalGradient(
                                         listOf(
-                                            Color.White.copy(alpha = 0.36f),
-                                            Color.White.copy(alpha = 0.10f)
+                                            Color.White.copy(alpha = 0.45f),
+                                            Color.White.copy(alpha = 0.12f)
                                         )
                                     ),
                                     shape = CircleShape
@@ -528,9 +592,20 @@ fun BottomBarPreview(
     val colors = AppTheme.colors
     val isThemed = style != BottomBarStyle.DEFAULT
 
+    var previewTab by remember { mutableIntStateOf(selectedTab) }
+    LaunchedEffect(selectedTab) {
+        previewTab = selectedTab
+    }
+
+    val animatedPillPos by animateFloatAsState(
+        targetValue = previewTab.toFloat(),
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "PreviewPillPosition"
+    )
+
     val itemWidthDp = 82.dp
     val padDp = 3.dp
-    val offDp = itemWidthDp * selectedTab + padDp
+    val offDp = itemWidthDp * animatedPillPos + padDp
     val wDp = itemWidthDp - padDp * 2
 
     Box(
@@ -614,26 +689,89 @@ fun BottomBarPreview(
                             )
                     )
                 } else {
+                    // ── Тематический стиль: Эффект линзы-лупы (увеличение ~1.48x под пилюлей) ──
+                    if (style.drawableRes != null) {
+                        val pivotXFrac = ((6.dp + offDp + wDp / 2) / 340.dp).coerceIn(0f, 1f)
+                        val pivotYFrac = 0.5f
+
+                        // Слой увеличенного фонового изображения (лупа)
+                        Image(
+                            painter = painterResource(id = style.drawableRes),
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .requiredSize(width = 340.dp, height = 64.dp)
+                                .offset(x = -(6.dp + offDp), y = -6.dp)
+                                .graphicsLayer {
+                                    scaleX = 1.48f
+                                    scaleY = 1.48f
+                                    transformOrigin = TransformOrigin(pivotXFrac, pivotYFrac)
+                                }
+                        )
+
+                        // Если анимированный стиль — также проецируем анимацию с увеличением
+                        if (style.isAnimated) {
+                            Box(
+                                modifier = Modifier
+                                    .requiredSize(width = 340.dp, height = 64.dp)
+                                    .offset(x = -(6.dp + offDp), y = -6.dp)
+                                    .graphicsLayer {
+                                        scaleX = 1.48f
+                                        scaleY = 1.48f
+                                        transformOrigin = TransformOrigin(pivotXFrac, pivotYFrac)
+                                    }
+                            ) {
+                                AnimatedBottomBarEffect(
+                                    style = style,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+                        }
+
+                        // Мягкое затемнение под лупой для четкости текста
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color.Black.copy(alpha = 0.25f))
+                        )
+
+                        // Сферическое преломление лупы (радиальное затемнение по краям и блик в центре)
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    brush = Brush.radialGradient(
+                                        colors = listOf(
+                                            Color.White.copy(alpha = 0.16f),
+                                            Color.Transparent,
+                                            Color.Black.copy(alpha = 0.32f)
+                                        )
+                                    )
+                                )
+                        )
+                    }
+
+                    // Стеклянный градиент и спекулярный контур линзы
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(Color.White.copy(alpha = 0.11f))
+                            .background(Color.White.copy(alpha = 0.08f))
                             .background(
                                 brush = Brush.verticalGradient(
                                     listOf(
-                                        Color.White.copy(alpha = 0.22f),
-                                        Color.White.copy(alpha = 0.03f),
+                                        Color.White.copy(alpha = 0.25f),
+                                        Color.White.copy(alpha = 0.04f),
                                         Color.Transparent,
-                                        Color.White.copy(alpha = 0.08f)
+                                        Color.White.copy(alpha = 0.10f)
                                     )
                                 )
                             )
                             .border(
-                                width = 1.dp,
+                                width = 1.2.dp,
                                 brush = Brush.verticalGradient(
                                     listOf(
-                                        Color.White.copy(alpha = 0.36f),
-                                        Color.White.copy(alpha = 0.10f)
+                                        Color.White.copy(alpha = 0.45f),
+                                        Color.White.copy(alpha = 0.12f)
                                     )
                                 ),
                                 shape = CircleShape
@@ -642,27 +780,27 @@ fun BottomBarPreview(
                 }
             }
 
-            // Табы
+            // Табы с возможностью интерактивного переключения в превью
             Row(
                 modifier = Modifier.fillMaxSize(),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 NavPillItem(
-                    label = "Главная", index = 0, pillPosition = selectedTab.toFloat(), isThemed = isThemed,
-                    onClick = { }, modifier = Modifier.width(itemWidthDp)
+                    label = "Главная", index = 0, pillPosition = animatedPillPos, isThemed = isThemed,
+                    onClick = { previewTab = 0 }, modifier = Modifier.width(itemWidthDp)
                 ) { sel, col -> HomeIcon(isSelected = sel, activeColor = col) }
                 NavPillItem(
-                    label = "Таймеры", index = 1, pillPosition = selectedTab.toFloat(), isThemed = isThemed,
-                    onClick = { }, modifier = Modifier.width(itemWidthDp)
+                    label = "Таймеры", index = 1, pillPosition = animatedPillPos, isThemed = isThemed,
+                    onClick = { previewTab = 1 }, modifier = Modifier.width(itemWidthDp)
                 ) { sel, col -> TimerIcon(isSelected = sel, activeColor = col) }
                 NavPillItem(
-                    label = "Настройки", index = 2, pillPosition = selectedTab.toFloat(), isThemed = isThemed,
-                    onClick = { }, modifier = Modifier.width(itemWidthDp)
+                    label = "Настройки", index = 2, pillPosition = animatedPillPos, isThemed = isThemed,
+                    onClick = { previewTab = 2 }, modifier = Modifier.width(itemWidthDp)
                 ) { sel, col -> SettingsIcon(isSelected = sel, activeColor = col) }
                 NavPillItem(
-                    label = "Чат бот", index = 3, pillPosition = selectedTab.toFloat(), isThemed = isThemed,
-                    onClick = { }, modifier = Modifier.width(itemWidthDp)
+                    label = "Чат бот", index = 3, pillPosition = animatedPillPos, isThemed = isThemed,
+                    onClick = { previewTab = 3 }, modifier = Modifier.width(itemWidthDp)
                 ) { sel, col -> ChatIcon(isSelected = sel, activeColor = col) }
             }
         }
