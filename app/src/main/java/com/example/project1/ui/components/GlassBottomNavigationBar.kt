@@ -186,8 +186,8 @@ fun GlassBottomNavigationBar(
                                         scaleX = scale
                                         scaleY = scale
                                         transformOrigin = TransformOrigin(0f, 0f)
-                                        translationX = (wDp / 2 - (6.dp + offDp + wDp / 2) * scale).toPx()
-                                        translationY = (26.dp - 32.dp * scale).toPx()
+                                        translationX = (170.dp - (6.dp + offDp + wDp / 2) * scale).toPx()
+                                        translationY = (32.dp - 32.dp * scale).toPx()
                                     }
                             ) {
                                 Image(
@@ -693,8 +693,8 @@ fun BottomBarPreview(
                                     scaleX = scale
                                     scaleY = scale
                                     transformOrigin = TransformOrigin(0f, 0f)
-                                    translationX = (wDp / 2 - (6.dp + offDp + wDp / 2) * scale).toPx()
-                                    translationY = (26.dp - 32.dp * scale).toPx()
+                                    translationX = (170.dp - (6.dp + offDp + wDp / 2) * scale).toPx()
+                                    translationY = (32.dp - 32.dp * scale).toPx()
                                 }
                         ) {
                             Image(
