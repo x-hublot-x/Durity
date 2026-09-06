@@ -176,36 +176,28 @@ fun GlassBottomNavigationBar(
                     } else {
                         // ── Тематический стиль: Эффект линзы-лупы (увеличение ~1.48x под пилюлей) ──
                         if (currentStyle.drawableRes != null) {
-                            val pivotXFrac = ((6.dp + offDp + wDp / 2) / 340.dp).coerceIn(0f, 1f)
-                            val pivotYFrac = 0.5f
+                            val scale = 1.48f
 
-                            // Слой увеличенного фонового изображения (лупа)
-                            Image(
-                                painter = painterResource(id = currentStyle.drawableRes),
-                                contentDescription = null,
-                                contentScale = ContentScale.Crop,
+                            // Единый слой увеличенного фонового контента с точным позиционированием под линзой
+                            Box(
                                 modifier = Modifier
                                     .requiredSize(width = 340.dp, height = 64.dp)
-                                    .offset(x = -(6.dp + offDp), y = -6.dp)
                                     .graphicsLayer {
-                                        scaleX = 1.48f
-                                        scaleY = 1.48f
-                                        transformOrigin = TransformOrigin(pivotXFrac, pivotYFrac)
+                                        scaleX = scale
+                                        scaleY = scale
+                                        transformOrigin = TransformOrigin(0f, 0f)
+                                        translationX = (wDp / 2 - (6.dp + offDp + wDp / 2) * scale).toPx()
+                                        translationY = (26.dp - 32.dp * scale).toPx()
                                     }
-                            )
+                            ) {
+                                Image(
+                                    painter = painterResource(id = currentStyle.drawableRes),
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
 
-                            // Если анимированный стиль — также проецируем анимацию с увеличением
-                            if (currentStyle.isAnimated) {
-                                Box(
-                                    modifier = Modifier
-                                        .requiredSize(width = 340.dp, height = 64.dp)
-                                        .offset(x = -(6.dp + offDp), y = -6.dp)
-                                        .graphicsLayer {
-                                            scaleX = 1.48f
-                                            scaleY = 1.48f
-                                            transformOrigin = TransformOrigin(pivotXFrac, pivotYFrac)
-                                        }
-                                ) {
+                                if (currentStyle.isAnimated) {
                                     AnimatedBottomBarEffect(
                                         style = currentStyle,
                                         modifier = Modifier.fillMaxSize()
@@ -691,36 +683,28 @@ fun BottomBarPreview(
                 } else {
                     // ── Тематический стиль: Эффект линзы-лупы (увеличение ~1.48x под пилюлей) ──
                     if (style.drawableRes != null) {
-                        val pivotXFrac = ((6.dp + offDp + wDp / 2) / 340.dp).coerceIn(0f, 1f)
-                        val pivotYFrac = 0.5f
+                        val scale = 1.48f
 
-                        // Слой увеличенного фонового изображения (лупа)
-                        Image(
-                            painter = painterResource(id = style.drawableRes),
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
+                        // Единый слой увеличенного фонового контента с точным позиционированием под линзой
+                        Box(
                             modifier = Modifier
                                 .requiredSize(width = 340.dp, height = 64.dp)
-                                .offset(x = -(6.dp + offDp), y = -6.dp)
                                 .graphicsLayer {
-                                    scaleX = 1.48f
-                                    scaleY = 1.48f
-                                    transformOrigin = TransformOrigin(pivotXFrac, pivotYFrac)
+                                    scaleX = scale
+                                    scaleY = scale
+                                    transformOrigin = TransformOrigin(0f, 0f)
+                                    translationX = (wDp / 2 - (6.dp + offDp + wDp / 2) * scale).toPx()
+                                    translationY = (26.dp - 32.dp * scale).toPx()
                                 }
-                        )
+                        ) {
+                            Image(
+                                painter = painterResource(id = style.drawableRes),
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
 
-                        // Если анимированный стиль — также проецируем анимацию с увеличением
-                        if (style.isAnimated) {
-                            Box(
-                                modifier = Modifier
-                                    .requiredSize(width = 340.dp, height = 64.dp)
-                                    .offset(x = -(6.dp + offDp), y = -6.dp)
-                                    .graphicsLayer {
-                                        scaleX = 1.48f
-                                        scaleY = 1.48f
-                                        transformOrigin = TransformOrigin(pivotXFrac, pivotYFrac)
-                                    }
-                            ) {
+                            if (style.isAnimated) {
                                 AnimatedBottomBarEffect(
                                     style = style,
                                     modifier = Modifier.fillMaxSize()
