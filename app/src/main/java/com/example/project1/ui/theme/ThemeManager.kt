@@ -1,6 +1,8 @@
 package com.example.project1.ui.theme
 
+import android.content.ComponentName
 import android.content.Context
+import android.content.pm.PackageManager
 import com.example.project1.data.storage.DailyTaskStorage
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
@@ -199,6 +201,8 @@ object ThemeManager {
         } catch (e: Exception) {
             BottomBarStyle.DEFAULT
         }
+
+        updateAppIcon(context, currentAccent)
     }
 
     fun isStyleUnlocked(style: BottomBarStyle): Boolean {
@@ -232,6 +236,7 @@ object ThemeManager {
         currentAccent = accent
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit().putString(KEY_ACCENT, accent.name).apply()
+        updateAppIcon(context, accent)
     }
 
     fun setBottomBarStyle(context: Context, style: BottomBarStyle) {
@@ -239,5 +244,51 @@ object ThemeManager {
         currentBottomBarStyle = style
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit().putString(KEY_BOTTOM_BAR_STYLE, style.name).apply()
+    }
+
+    private fun updateAppIcon(context: Context, accent: AccentTheme) {
+        try {
+            val pm = context.packageManager
+            val packageName = context.packageName
+
+            val aliasMap = mapOf(
+                AccentTheme.RED to "$packageName.MainActivityAliasRed",
+                AccentTheme.ORANGE to "$packageName.MainActivityAliasOrange",
+                AccentTheme.YELLOW to "$packageName.MainActivityAliasYellow",
+                AccentTheme.GREEN to "$packageName.MainActivityAliasGreen",
+                AccentTheme.BLUE to "$packageName.MainActivityAliasBlue",
+                AccentTheme.PURPLE to "$packageName.MainActivityAliasPurple",
+                AccentTheme.PINK to "$packageName.MainActivityAliasPink"
+            )
+
+            val targetAlias = aliasMap[accent] ?: return
+            val targetComponent = ComponentName(context, targetAlias)
+
+            // 1. Сначала включаем целевой компонент-алиас
+            val currentSetting = pm.getComponentEnabledSetting(targetComponent)
+            if (currentSetting != PackageManager.COMPONENT_ENABLED_STATE_ENABLED) {
+                pm.setComponentEnabledSetting(
+                    targetComponent,
+                    PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                    PackageManager.DONT_KILL_APP
+                )
+            }
+
+            // 2. Отключаем все остальные алиасы
+            aliasMap.values.forEach { aliasName ->
+                if (aliasName != targetAlias) {
+                    val comp = ComponentName(context, aliasName)
+                    if (pm.getComponentEnabledSetting(comp) != PackageManager.COMPONENT_ENABLED_STATE_DISABLED) {
+                        pm.setComponentEnabledSetting(
+                            comp,
+                            PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                            PackageManager.DONT_KILL_APP
+                        )
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 }
