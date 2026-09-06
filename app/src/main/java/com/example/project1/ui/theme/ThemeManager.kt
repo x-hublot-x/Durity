@@ -201,9 +201,9 @@ object ThemeManager {
         } catch (e: Exception) {
             BottomBarStyle.DEFAULT
         }
-
-        updateAppIcon(context, currentAccent)
     }
+
+    private var pendingIconAccent: AccentTheme? = null
 
     fun isStyleUnlocked(style: BottomBarStyle): Boolean {
         if (style == BottomBarStyle.DEFAULT) return true
@@ -236,7 +236,13 @@ object ThemeManager {
         currentAccent = accent
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit().putString(KEY_ACCENT, accent.name).apply()
-        updateAppIcon(context, accent)
+        pendingIconAccent = accent
+    }
+
+    fun applyPendingAppIcon(context: Context) {
+        val accent = pendingIconAccent ?: return
+        pendingIconAccent = null
+        updateAppIcon(context.applicationContext, accent)
     }
 
     fun setBottomBarStyle(context: Context, style: BottomBarStyle) {

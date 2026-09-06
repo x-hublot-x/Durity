@@ -178,6 +178,11 @@ class MainActivity : ComponentActivity() {
         }
         return false
     }
+
+    override fun onStop() {
+        super.onStop()
+        ThemeManager.applyPendingAppIcon(applicationContext)
+    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
