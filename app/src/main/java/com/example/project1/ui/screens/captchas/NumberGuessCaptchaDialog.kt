@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.project1.data.repository.NumberSettingsManager
+import com.example.project1.ui.theme.AppTheme
 import kotlinx.coroutines.delay
 
 @Composable
@@ -57,7 +58,7 @@ fun NumberGuessCaptchaDialog(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = "Загадано число в диапазоне [0, 10]",
+                    text = "Загадано число в диапазоне [0, 1]",
                     fontSize = 13.sp,
                     color = Color.White.copy(alpha = 0.6f),
                     textAlign = TextAlign.Center
@@ -96,7 +97,7 @@ fun NumberGuessCaptchaDialog(
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = Color.White,
                         unfocusedTextColor = Color.White,
-                        focusedBorderColor = Color(0xFFFF5252),
+                        focusedBorderColor = AppTheme.accent,
                         unfocusedBorderColor = Color.White.copy(alpha = 0.3f),
                         focusedContainerColor = Color(0xFF14141E),
                         unfocusedContainerColor = Color(0xFF14141E)
@@ -146,7 +147,7 @@ fun NumberGuessCaptchaDialog(
                             }
                         },
                         enabled = !isFailed,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252)),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppTheme.accent),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.weight(1f)
                     ) {

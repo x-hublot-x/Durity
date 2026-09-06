@@ -1,6 +1,9 @@
 package com.example.project1.ui.components
 
 import android.graphics.Color as AndroidColor
+import android.view.MotionEvent
+import android.view.View
+import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -166,7 +169,7 @@ fun KatexView(
         .replace("\n", " ")
 
     val displayMode = isBlock.toString()
-    val justify = if (isBlock) "center" else "flex-start"
+    val mathMargin = if (isBlock) "0 auto" else "0"
 
     val htmlContent = """<!DOCTYPE html>
 <html>
@@ -174,21 +177,39 @@ fun KatexView(
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
-body {
-  background:transparent;
-  color:$colorHex;
-  font-size:${textSizeSp}px;
-  display:flex;
-  justify-content:$justify;
-  align-items:center;
-  overflow:hidden;
-  width:100%;
+html, body {
+  background: transparent;
+  color: $colorHex;
+  font-size: ${textSizeSp}px;
+  margin: 0;
+  padding: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
+  width: 100%;
+  min-width: 100%;
 }
-#math { padding:4px; }
+#math-wrapper {
+  display: inline-flex;
+  min-width: 100%;
+  padding: 4px 6px;
+  box-sizing: border-box;
+}
+#math {
+  margin: $mathMargin;
+  display: inline-block;
+}
+.katex-display {
+  margin: 0 !important;
+}
+.katex { font-size: 1em; }
 </style>
 </head>
 <body>
-<div id="math"></div>
+<div id="math-wrapper">
+  <div id="math"></div>
+</div>
 <script>
 (function() {
   var latex = '$sanitizedLatex';
@@ -233,19 +254,62 @@ body {
                 setBackgroundColor(0x00000000)
                 settings.javaScriptEnabled = true
                 settings.loadWithOverviewMode = true
-                settings.useWideViewPort = false
+                settings.useWideViewPort = true
                 settings.allowFileAccess = true
+                isHorizontalScrollBarEnabled = true
+                isVerticalScrollBarEnabled = false
+                scrollBarStyle = View.SCROLLBARS_INSIDE_OVERLAY
+
+                val touchSlop = ViewConfiguration.get(context).scaledTouchSlop.toFloat()
+                var startX = 0f
+                var startY = 0f
+                var isHorizontalDrag = false
+                setOnTouchListener { v, event ->
+                    when (event.actionMasked) {
+                        MotionEvent.ACTION_DOWN -> {
+                            startX = event.x
+                            startY = event.y
+                            isHorizontalDrag = false
+                            v.parent?.requestDisallowInterceptTouchEvent(false)
+                        }
+                        MotionEvent.ACTION_MOVE -> {
+                            val dx = kotlin.math.abs(event.x - startX)
+                            val dy = kotlin.math.abs(event.y - startY)
+                            if (!isHorizontalDrag) {
+                                val canScrollH = (event.x < startX && v.canScrollHorizontally(1)) ||
+                                                 (event.x > startX && v.canScrollHorizontally(-1))
+                                if (dx > dy && dx > touchSlop && canScrollH) {
+                                    isHorizontalDrag = true
+                                    v.parent?.requestDisallowInterceptTouchEvent(true)
+                                } else if (dy > dx && dy > touchSlop) {
+                                    v.parent?.requestDisallowInterceptTouchEvent(false)
+                                }
+                            } else {
+                                v.parent?.requestDisallowInterceptTouchEvent(true)
+                            }
+                        }
+                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                            v.parent?.requestDisallowInterceptTouchEvent(false)
+                            isHorizontalDrag = false
+                        }
+                    }
+                    false
+                }
+
                 webViewClient = WebViewClient()
             }
         },
         update = { webView ->
-            webView.loadDataWithBaseURL(
-                "file:///android_asset/katex/",
-                htmlContent,
-                "text/html",
-                "UTF-8",
-                null
-            )
+            if (webView.tag != htmlContent) {
+                webView.tag = htmlContent
+                webView.loadDataWithBaseURL(
+                    "file:///android_asset/katex/",
+                    htmlContent,
+                    "text/html",
+                    "UTF-8",
+                    null
+                )
+            }
         }
     )
 }
@@ -279,22 +343,30 @@ fun KatexViewLeft(
     val htmlContent = """<!DOCTYPE html>
 <html>
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 html, body {
   background: transparent;
   color: $colorHex;
   font-size: ${textSizeSp}px;
+  margin: 0;
+  padding: 0;
   overflow-x: auto;
   overflow-y: hidden;
   white-space: nowrap;
-  width: max-content;
+  -webkit-overflow-scrolling: touch;
+  width: 100%;
   min-width: 100%;
+}
+#math-wrapper {
+  display: inline-flex;
+  min-width: 100%;
+  box-sizing: border-box;
 }
 #math {
   display: inline-block;
-  padding: 4px 6px;
+  padding: 4px 2px;
   text-align: left;
 }
 .katex-display {
@@ -305,7 +377,9 @@ html, body {
 </style>
 </head>
 <body>
-<div id="math"></div>
+<div id="math-wrapper">
+  <div id="math"></div>
+</div>
 <script>
 (function() {
   var latex = '$sanitizedLatex';
@@ -350,17 +424,58 @@ html, body {
                 settings.allowFileAccess = true
                 isHorizontalScrollBarEnabled = true
                 isVerticalScrollBarEnabled = false
+                scrollBarStyle = View.SCROLLBARS_INSIDE_OVERLAY
+
+                val touchSlop = ViewConfiguration.get(context).scaledTouchSlop.toFloat()
+                var startX = 0f
+                var startY = 0f
+                var isHorizontalDrag = false
+                setOnTouchListener { v, event ->
+                    when (event.actionMasked) {
+                        MotionEvent.ACTION_DOWN -> {
+                            startX = event.x
+                            startY = event.y
+                            isHorizontalDrag = false
+                            v.parent?.requestDisallowInterceptTouchEvent(false)
+                        }
+                        MotionEvent.ACTION_MOVE -> {
+                            val dx = kotlin.math.abs(event.x - startX)
+                            val dy = kotlin.math.abs(event.y - startY)
+                            if (!isHorizontalDrag) {
+                                val canScrollH = (event.x < startX && v.canScrollHorizontally(1)) ||
+                                                 (event.x > startX && v.canScrollHorizontally(-1))
+                                if (dx > dy && dx > touchSlop && canScrollH) {
+                                    isHorizontalDrag = true
+                                    v.parent?.requestDisallowInterceptTouchEvent(true)
+                                } else if (dy > dx && dy > touchSlop) {
+                                    v.parent?.requestDisallowInterceptTouchEvent(false)
+                                }
+                            } else {
+                                v.parent?.requestDisallowInterceptTouchEvent(true)
+                            }
+                        }
+                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                            v.parent?.requestDisallowInterceptTouchEvent(false)
+                            isHorizontalDrag = false
+                        }
+                    }
+                    false
+                }
+
                 webViewClient = WebViewClient()
             }
         },
         update = { webView ->
-            webView.loadDataWithBaseURL(
-                "file:///android_asset/katex/",
-                htmlContent,
-                "text/html",
-                "UTF-8",
-                null
-            )
+            if (webView.tag != htmlContent) {
+                webView.tag = htmlContent
+                webView.loadDataWithBaseURL(
+                    "file:///android_asset/katex/",
+                    htmlContent,
+                    "text/html",
+                    "UTF-8",
+                    null
+                )
+            }
         }
     )
 }
@@ -414,19 +529,15 @@ fun MixedMathText(
         segments.forEach { seg ->
             when (seg) {
                 is MessageSegment.BlockMath -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState())
-                    ) {
-                        KatexView(
-                            latex = seg.latex,
-                            textSizeSp = textSizeSp + 4,
-                            textColor = textColor,
-                            isBlock = true,
-                            modifier = Modifier.wrapContentWidth()
-                        )
-                    }
+                    Spacer(Modifier.height(4.dp))
+                    KatexViewLeft(
+                        latex = seg.latex,
+                        textSizeSp = textSizeSp + 2,
+                        textColor = textColor,
+                        isBlock = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(4.dp))
                 }
                 is MessageSegment.PlainText -> {
                     if (seg.text.isNotBlank()) {
@@ -481,7 +592,14 @@ fun TaskLatexView(latex: String) {
                     Spacer(Modifier.height(4.dp))
                 }
                 is TaskSegment.InlineMath -> {
-                    TaskMathInlineView(latex = seg.latex)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        TaskMathInlineView(latex = seg.latex)
+                    }
                 }
                 is TaskSegment.PlainText -> {
                     if (seg.text.isNotBlank()) {
@@ -504,7 +622,7 @@ fun TaskMathBlockView(latex: String, modifier: Modifier = Modifier) {
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
             .background(Color(0xFF141420))
-            .padding(16.dp),
+            .padding(vertical = 12.dp, horizontal = 8.dp),
         contentAlignment = Alignment.Center
     ) {
         KatexView(latex = latex, textSizeSp = 24, isBlock = true)

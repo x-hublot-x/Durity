@@ -2,11 +2,14 @@ package com.example.project1.ui.screens.stats
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -20,38 +23,66 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import com.example.project1.data.model.AppInfo
+import com.example.project1.ui.theme.AppTheme
 import com.example.project1.util.formatMinutes
 
 @Composable
-fun StatsScreen(appsWithTimers: List<AppInfo>) {
+fun StatsScreen(
+    appsWithTimers: List<AppInfo>,
+    onBack: (() -> Unit)? = null
+) {
     val totalMinutes = appsWithTimers.sumOf { it.usedMinutesThisWeek }
+    val colors = AppTheme.colors
 
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(colors.background)
             .padding(horizontal = 16.dp)
     ) {
         Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = "Статистика",
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.White,
-            modifier = Modifier.padding(vertical = 12.dp)
-        )
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (onBack != null) {
+                IconButton(
+                    onClick = onBack,
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Назад",
+                        tint = colors.textPrimary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+            }
+
+            Text(
+                text = "Статистика",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = colors.textPrimary
+            )
+        }
 
         Spacer(modifier = Modifier.height(8.dp))
 
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A24))
+            colors = CardDefaults.cardColors(containerColor = colors.surface)
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
                 Text(
                     text = "Использование за текущий день цикла",
                     fontSize = 13.sp,
-                    color = Color.White.copy(alpha = 0.6f)
+                    color = colors.textSecondary
                 )
 
                 Spacer(modifier = Modifier.height(6.dp))
@@ -60,7 +91,7 @@ fun StatsScreen(appsWithTimers: List<AppInfo>) {
                     text = formatMinutes(totalMinutes),
                     fontSize = 32.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFFFF5252)
+                    color = colors.primary
                 )
 
                 Spacer(modifier = Modifier.height(4.dp))
@@ -68,7 +99,7 @@ fun StatsScreen(appsWithTimers: List<AppInfo>) {
                 Text(
                     text = "Сброс статистики каждый день в 3:00 МСК",
                     fontSize = 11.sp,
-                    color = Color.White.copy(alpha = 0.4f)
+                    color = colors.textTertiary
                 )
             }
         }
@@ -79,7 +110,7 @@ fun StatsScreen(appsWithTimers: List<AppInfo>) {
             text = "Детализация по таймерам",
             fontSize = 18.sp,
             fontWeight = FontWeight.SemiBold,
-            color = Color.White
+            color = colors.textPrimary
         )
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -91,7 +122,7 @@ fun StatsScreen(appsWithTimers: List<AppInfo>) {
             ) {
                 Text(
                     text = "Список таймеров пуст",
-                    color = Color.White.copy(alpha = 0.5f),
+                    color = colors.textSecondary,
                     fontSize = 15.sp
                 )
             }
@@ -110,6 +141,7 @@ fun StatsScreen(appsWithTimers: List<AppInfo>) {
 
 @Composable
 fun StatItemCard(app: AppInfo) {
+    val colors = AppTheme.colors
     val progress = if (app.timeLimitMinutes > 0) {
         (app.usedMinutesThisWeek.toFloat() / app.timeLimitMinutes.toFloat()).coerceIn(0f, 1f)
     } else 0f
@@ -118,7 +150,7 @@ fun StatItemCard(app: AppInfo) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(Color(0xFF1A1A24))
+            .background(colors.surface)
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -138,13 +170,13 @@ fun StatItemCard(app: AppInfo) {
             ) {
                 Text(
                     text = app.name,
-                    color = Color.White,
+                    color = colors.textPrimary,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Medium
                 )
                 Text(
                     text = "${formatMinutes(app.usedMinutesThisWeek)} / ${formatMinutes(app.timeLimitMinutes)}",
-                    color = Color.White.copy(alpha = 0.7f),
+                    color = colors.textSecondary,
                     fontSize = 13.sp
                 )
             }
@@ -157,8 +189,8 @@ fun StatItemCard(app: AppInfo) {
                     .fillMaxWidth()
                     .height(6.dp)
                     .clip(CircleShape),
-                color = if (progress >= 1f) Color(0xFF80D8FF) else Color(0xFFFF5252),
-                trackColor = Color.White.copy(alpha = 0.1f)
+                color = if (progress >= 1f) Color(0xFF80D8FF) else colors.primary,
+                trackColor = colors.surfaceElevated
             )
         }
     }

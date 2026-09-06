@@ -76,8 +76,8 @@ fun WheelPicker(
                 .fillMaxWidth()
                 .height(itemHeight)
                 .clip(RoundedCornerShape(10.dp))
-                .background(Color(0x33E53935))
-                .border(1.dp, Color(0xFFFF5252).copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+                .background(com.example.project1.ui.theme.AppTheme.colors.primarySubtle)
+                .border(1.dp, com.example.project1.ui.theme.AppTheme.accent.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
         )
 
         LazyColumn(
@@ -103,7 +103,7 @@ fun WheelPicker(
                         text = items.getOrElse(actualIndex) { "00" },
                         fontSize = if (isSelected.value) 22.sp else 16.sp,
                         fontWeight = if (isSelected.value) FontWeight.Bold else FontWeight.Normal,
-                        color = if (isSelected.value) Color(0xFFFF5252) else Color.White.copy(alpha = 0.4f)
+                        color = if (isSelected.value) com.example.project1.ui.theme.AppTheme.accent else Color.White.copy(alpha = 0.4f)
                     )
                 }
             }

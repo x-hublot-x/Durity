@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.project1.ui.components.KatexViewLeft
+import com.example.project1.ui.theme.AppTheme
 
 // ── Модели ────────────────────────────────────────────────────────────────────
 
@@ -546,13 +547,14 @@ val mathSections: List<MathSection> = listOf(
 @Composable
 fun MathReferenceCard() {
     var showSheet by remember { mutableStateOf(false) }
+    val colors = AppTheme.colors
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
-            .background(Brush.horizontalGradient(listOf(Color(0xFF1A1A2E), Color(0xFF16213E))))
-            .border(1.dp, Color(0xFF7C4DFF).copy(alpha = 0.45f), RoundedCornerShape(20.dp))
+            .background(colors.surfaceElevated)
+            .border(1.dp, colors.surfaceBorder, RoundedCornerShape(20.dp))
             .clickable { showSheet = true }
             .padding(20.dp)
     ) {
@@ -561,22 +563,22 @@ fun MathReferenceCard() {
                 modifier = Modifier
                     .size(52.dp)
                     .clip(RoundedCornerShape(14.dp))
-                    .background(Color(0xFF7C4DFF).copy(alpha = 0.18f)),
+                    .background(colors.primarySubtle),
                 contentAlignment = Alignment.Center
             ) { Text("📐", fontSize = 24.sp) }
 
             Spacer(Modifier.width(14.dp))
 
             Column(Modifier.weight(1f)) {
-                Text("Справочник", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text("Справочник", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = colors.textPrimary)
                 Spacer(Modifier.height(3.dp))
                 Text(
                     "Производные, интегралы, ряды, матрицы…",
-                    fontSize = 12.sp, color = Color.White.copy(alpha = 0.55f)
+                    fontSize = 12.sp, color = colors.textSecondary
                 )
             }
 
-            Text("›", fontSize = 26.sp, color = Color.White.copy(alpha = 0.35f))
+            Text("›", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = colors.primary)
         }
     }
 
@@ -590,10 +592,12 @@ fun MathReferenceCard() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MathReferenceFullScreen(onDismiss: () -> Unit) {
+    val colors = AppTheme.colors
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = Color(0xFF0F0F1A),
+        containerColor = colors.background,
         dragHandle = {
             Box(
                 Modifier
@@ -601,7 +605,7 @@ fun MathReferenceFullScreen(onDismiss: () -> Unit) {
                     .width(40.dp)
                     .height(4.dp)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(Color.White.copy(alpha = 0.2f))
+                    .background(colors.surfaceBorder)
             )
         }
     ) {
@@ -619,21 +623,22 @@ fun MathReferenceFullScreen(onDismiss: () -> Unit) {
                     "Математический справочник",
                     fontSize = 19.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White,
+                    color = colors.textPrimary,
                     modifier = Modifier.weight(1f)
                 )
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(10.dp))
                         .clickable { onDismiss() }
-                        .background(Color.White.copy(alpha = 0.07f))
+                        .background(colors.surfaceElevated)
+                        .border(1.dp, colors.surfaceBorder, RoundedCornerShape(10.dp))
                         .padding(horizontal = 12.dp, vertical = 7.dp)
                 ) {
-                    Text("✕", fontSize = 14.sp, color = Color.White.copy(alpha = 0.6f))
+                    Text("✕", fontSize = 14.sp, color = colors.textPrimary)
                 }
             }
 
-            Box(Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.07f)))
+            Box(Modifier.fillMaxWidth().height(1.dp).background(colors.surfaceBorder))
 
             // Контент
             Column(
@@ -646,7 +651,7 @@ fun MathReferenceFullScreen(onDismiss: () -> Unit) {
                 mathSections.forEach { section ->
                     MathSectionCard(section)
                 }
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(32.dp))
             }
         }
     }
@@ -658,13 +663,18 @@ fun MathReferenceFullScreen(onDismiss: () -> Unit) {
 fun MathSectionCard(section: MathSection) {
     var expanded by remember { mutableStateOf(false) }
     val arrowAngle by animateFloatAsState(if (expanded) 90f else 0f, label = "arrow")
+    val colors = AppTheme.colors
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
-            .background(Color(0xFF16162A))
-            .border(1.dp, section.accentColor.copy(alpha = 0.35f), RoundedCornerShape(18.dp))
+            .background(colors.surfaceElevated)
+            .border(
+                1.dp,
+                if (expanded) colors.primary.copy(alpha = 0.5f) else colors.surfaceBorder,
+                RoundedCornerShape(18.dp)
+            )
     ) {
         // Шапка секции
         Row(
@@ -678,23 +688,24 @@ fun MathSectionCard(section: MathSection) {
                 modifier = Modifier
                     .size(40.dp)
                     .clip(RoundedCornerShape(11.dp))
-                    .background(section.accentColor.copy(alpha = 0.15f)),
+                    .background(colors.primarySubtle),
                 contentAlignment = Alignment.Center
             ) {
-                Text(section.emoji, fontSize = 19.sp, color = section.accentColor, fontWeight = FontWeight.Bold)
+                Text(section.emoji, fontSize = 19.sp, color = colors.primary, fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.width(13.dp))
             Text(
                 section.title,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = Color.White,
+                color = colors.textPrimary,
                 modifier = Modifier.weight(1f)
             )
             Text(
                 "›",
                 fontSize = 22.sp,
-                color = section.accentColor.copy(alpha = 0.8f),
+                fontWeight = FontWeight.Bold,
+                color = colors.primary,
                 modifier = Modifier.rotate(arrowAngle)
             )
         }
@@ -713,16 +724,16 @@ fun MathSectionCard(section: MathSection) {
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(8.dp))
-                            .background(section.accentColor.copy(alpha = 0.10f))
-                            .padding(horizontal = 12.dp, vertical = 5.dp)
+                            .background(colors.primary.copy(alpha = 0.12f))
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
                     ) {
                         Text(
-                            "Формула", fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
-                            color = section.accentColor, modifier = Modifier.weight(1f)
+                            "Формула", fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                            color = colors.primary, modifier = Modifier.weight(1f)
                         )
                         Text(
-                            "Пояснение", fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
-                            color = section.accentColor.copy(alpha = 0.65f)
+                            "Пояснение", fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                            color = colors.textSecondary
                         )
                     }
                     Spacer(Modifier.height(4.dp))
@@ -732,13 +743,13 @@ fun MathSectionCard(section: MathSection) {
                     when (entry) {
 
                         is MathEntry.SubHeader -> {
-                            Spacer(Modifier.height(6.dp))
+                            Spacer(Modifier.height(8.dp))
                             Text(
                                 entry.text,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = section.accentColor.copy(alpha = 0.85f),
-                                modifier = Modifier.padding(horizontal = 4.dp)
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = colors.primary,
+                                modifier = Modifier.padding(horizontal = 6.dp)
                             )
                         }
 
@@ -748,7 +759,7 @@ fun MathSectionCard(section: MathSection) {
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(8.dp))
                                     .background(
-                                        if (idx % 2 == 0) Color.White.copy(alpha = 0.04f)
+                                        if (idx % 2 == 0) colors.surface.copy(alpha = 0.6f)
                                         else Color.Transparent
                                     )
                                     .padding(end = 8.dp),
@@ -759,18 +770,19 @@ fun MathSectionCard(section: MathSection) {
                                     latex = entry.formula,
                                     textSizeSp = 14,
                                     isBlock = false,
-                                    textColor = Color.White,
+                                    textColor = colors.textPrimary,
                                     modifier = Modifier
                                         .weight(1f)
                                         .heightIn(min = 44.dp)
                                 )
-                                // Пояснение справа — фиксированная ширина
+                                // Пояснение справа — сочный, чёткий цвет темы
                                 Text(
                                     entry.hint,
-                                    fontSize = 11.sp,
-                                    color = section.accentColor.copy(alpha = 0.6f),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = colors.textSecondary,
                                     modifier = Modifier
-                                        .width(88.dp)
+                                        .width(96.dp)
                                         .padding(start = 6.dp)
                                 )
                             }
@@ -781,10 +793,10 @@ fun MathSectionCard(section: MathSection) {
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(10.dp))
-                                    .background(Color(0xFF0A0A18))
+                                    .background(colors.surface)
                                     .border(
-                                        0.5.dp,
-                                        section.accentColor.copy(alpha = 0.25f),
+                                        1.dp,
+                                        colors.primary.copy(alpha = 0.25f),
                                         RoundedCornerShape(10.dp)
                                     )
                             ) {
@@ -793,7 +805,7 @@ fun MathSectionCard(section: MathSection) {
                                     latex = entry.latex,
                                     textSizeSp = 15,
                                     isBlock = true,
-                                    textColor = Color.White,
+                                    textColor = colors.textPrimary,
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .heightIn(min = 55.dp)

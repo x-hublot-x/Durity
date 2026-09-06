@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.project1.data.model.GraphFunction
 import com.example.project1.data.model.GraphFunctionConfig
+import com.example.project1.ui.theme.AppTheme
 import kotlinx.coroutines.delay
 import kotlin.math.*
 
@@ -376,6 +377,7 @@ fun GraphTraceCaptchaDialog(
                         .aspectRatio(1f)
                         .clip(RoundedCornerShape(16.dp))
                 ) {
+                    val accentColor = AppTheme.accent
                     Canvas(
                         modifier = Modifier
                             .fillMaxSize()
@@ -440,7 +442,7 @@ fun GraphTraceCaptchaDialog(
                                 val alpha  = (i.toFloat() / dotTrail.size) * 0.50f
                                 val radius = 3f + (i.toFloat() / dotTrail.size) * 5f
                                 drawCircle(
-                                    color  = Color(0xFFFF5252).copy(alpha = alpha),
+                                    color  = accentColor.copy(alpha = alpha),
                                     radius = radius,
                                     center = trailPt
                                 )
@@ -449,8 +451,8 @@ fun GraphTraceCaptchaDialog(
                             val idx    = (dotProgress.value * (refPoints.size - 1))
                                 .toInt().coerceIn(0, refPoints.size - 1)
                             val dotPos = refPoints[idx].toCanvas(config, size, canvasPadding)
-                            drawCircle(color = Color(0xFFFF5252).copy(alpha = 0.25f), radius = 18f, center = dotPos)
-                            drawCircle(color = Color(0xFFFF5252),                     radius = 7f,  center = dotPos)
+                            drawCircle(color = accentColor.copy(alpha = 0.25f), radius = 18f, center = dotPos)
+                            drawCircle(color = accentColor,                     radius = 7f,  center = dotPos)
                             drawCircle(color = Color.White,                            radius = 3f,  center = dotPos)
                         }
 

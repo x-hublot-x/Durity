@@ -19,6 +19,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.project1.ui.components.CoinIcon
+import com.example.project1.ui.theme.AppTheme
 import java.util.Calendar
 import java.util.TimeZone
 
@@ -40,6 +41,7 @@ fun StreakCalendarDialog(
     onBuyFreezes: (count: Int) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val colors = AppTheme.colors
     val msk = TimeZone.getTimeZone("Europe/Moscow")
     val realToday = Calendar.getInstance(msk)
     val realTodayYear  = realToday.get(Calendar.YEAR)
@@ -105,7 +107,8 @@ fun StreakCalendarDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF1A1A24),
+        containerColor = colors.surface,
+        modifier = Modifier.border(1.dp, colors.surfaceBorder, RoundedCornerShape(24.dp)),
         shape = RoundedCornerShape(24.dp),
         title = {
             Row(
@@ -114,11 +117,11 @@ fun StreakCalendarDialog(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 IconButton(onClick = { prevMonth() }) {
-                    Text("‹", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Light)
+                    Text("‹", color = colors.textPrimary, fontSize = 24.sp, fontWeight = FontWeight.Light)
                 }
                 Text(
                     text = "${monthNames[displayMonth]} $displayYear",
-                    color = Color.White,
+                    color = colors.textPrimary,
                     fontWeight = FontWeight.Bold,
                     fontSize = 17.sp
                 )
@@ -128,7 +131,7 @@ fun StreakCalendarDialog(
                 ) {
                     Text(
                         "›",
-                        color = if (isCurrentMonth) Color.White.copy(alpha = 0.2f) else Color.White,
+                        color = if (isCurrentMonth) colors.textTertiary else colors.textPrimary,
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Light
                     )
@@ -148,7 +151,7 @@ fun StreakCalendarDialog(
                     dowLabels.forEach { label ->
                         Text(
                             text = label,
-                            color = Color.White.copy(alpha = 0.45f),
+                            color = colors.textSecondary,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
                             modifier = Modifier.weight(1f),
@@ -231,7 +234,7 @@ fun StreakCalendarDialog(
                                     }
 
                                     val circleBorder = if (isToday && !isSolved && !isFrozen) {
-                                        BorderStroke(1.5.dp, Color.White.copy(alpha = 0.7f))
+                                        BorderStroke(1.5.dp, colors.primary)
                                     } else null
 
                                     Box(
@@ -265,9 +268,9 @@ fun StreakCalendarDialog(
                                                 Text(
                                                     text = "$dom",
                                                     color = when {
-                                                        isFuture -> Color.White.copy(alpha = 0.2f)
-                                                        isToday  -> Color.White
-                                                        else     -> Color.White.copy(alpha = 0.55f)
+                                                        isFuture -> colors.textTertiary
+                                                        isToday  -> colors.primary
+                                                        else     -> colors.textSecondary
                                                     },
                                                     fontSize = 14.sp,
                                                     fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal
@@ -306,8 +309,8 @@ fun StreakCalendarDialog(
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
                         .background(
-                            if (streak > 0) Color(0xFFFF6D00).copy(alpha = 0.15f)
-                            else Color.White.copy(alpha = 0.05f)
+                            if (streak > 0) colors.primarySubtle
+                            else colors.surfaceElevated
                         )
                         .padding(vertical = 10.dp, horizontal = 16.dp)
                 ) {
@@ -316,7 +319,7 @@ fun StreakCalendarDialog(
                     Text(
                         text = if (streak > 0) "$streak ${streakDaysLabel(streak)} подряд"
                         else "Начни streak сегодня!",
-                        color = if (streak > 0) Color(0xFFFF9100) else Color.White.copy(alpha = 0.5f),
+                        color = if (streak > 0) colors.primary else colors.textSecondary,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 15.sp
                     )
@@ -330,8 +333,8 @@ fun StreakCalendarDialog(
 
                 Card(
                     shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF151C28)),
-                    border = BorderStroke(1.dp, Color(0xFF00B0FF).copy(alpha = 0.35f)),
+                    colors = CardDefaults.cardColors(containerColor = colors.surfaceElevated),
+                    border = BorderStroke(1.dp, colors.surfaceBorder),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
@@ -356,7 +359,7 @@ fun StreakCalendarDialog(
                             }
                             Text(
                                 text = "В наличии: $freezeCount",
-                                color = Color.White.copy(alpha = 0.75f),
+                                color = colors.textSecondary,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Medium
                             )
@@ -366,7 +369,7 @@ fun StreakCalendarDialog(
 
                         Text(
                             text = "Спасает стрик, если за весь день не была решена задача (до 3:00 МСК). Засчитает +1 к серии!",
-                            color = Color.White.copy(alpha = 0.5f),
+                            color = colors.textSecondary,
                             fontSize = 11.5.sp,
                             lineHeight = 16.sp
                         )
@@ -383,7 +386,7 @@ fun StreakCalendarDialog(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(10.dp))
-                                    .background(Color(0xFF222B3D))
+                                    .background(colors.surface)
                                     .padding(horizontal = 4.dp, vertical = 2.dp)
                             ) {
                                 IconButton(
@@ -393,14 +396,14 @@ fun StreakCalendarDialog(
                                 ) {
                                     Text(
                                         "−",
-                                        color = if (buyCount > 1) Color.White else Color.White.copy(alpha = 0.25f),
+                                        color = if (buyCount > 1) colors.textPrimary else colors.textTertiary,
                                         fontSize = 18.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
                                 Text(
                                     text = "$buyCount",
-                                    color = Color.White,
+                                    color = colors.textPrimary,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 16.sp,
                                     modifier = Modifier.padding(horizontal = 8.dp)
@@ -428,8 +431,8 @@ fun StreakCalendarDialog(
                                 },
                                 enabled = canAfford,
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xFF0288D1),
-                                    disabledContainerColor = Color.White.copy(alpha = 0.08f)
+                                    containerColor = colors.primary,
+                                    disabledContainerColor = colors.surfaceBorder
                                 ),
                                 shape = RoundedCornerShape(12.dp),
                                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
@@ -437,7 +440,7 @@ fun StreakCalendarDialog(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
                                         text = if (canAfford) "Купить ($totalCost" else "Нужно $totalCost",
-                                        color = if (canAfford) Color.White else Color.White.copy(alpha = 0.4f),
+                                        color = if (canAfford) Color.White else colors.textTertiary,
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -463,7 +466,7 @@ fun StreakCalendarDialog(
                         ) {
                             Text(
                                 text = "Баланс: $coins ",
-                                color = Color.White.copy(alpha = 0.55f),
+                                color = colors.textSecondary,
                                 fontSize = 12.sp
                             )
                             CoinIcon(size = 13)
@@ -476,7 +479,7 @@ fun StreakCalendarDialog(
             TextButton(onClick = onDismiss) {
                 Text(
                     "Закрыть",
-                    color = Color(0xFFFF9100),
+                    color = colors.textSecondary,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -489,7 +492,8 @@ fun StreakCalendarDialog(
         val freezeWordText = freezeWord(buyCount)
         AlertDialog(
             onDismissRequest = { showConfirmDialog = false },
-            containerColor = Color(0xFF1E1E2A),
+            containerColor = colors.surface,
+            modifier = Modifier.border(1.dp, colors.surfaceBorder, RoundedCornerShape(20.dp)),
             shape = RoundedCornerShape(20.dp),
             title = {
                 Row(
@@ -513,13 +517,13 @@ fun StreakCalendarDialog(
                     ) {
                         Text(
                             text = "Купить $buyCount $freezeWordText за $totalCost",
-                            color = Color.White.copy(alpha = 0.9f),
+                            color = colors.textPrimary,
                             fontSize = 14.sp
                         )
                         CoinIcon(size = 15)
                         Text(
                             text = "?",
-                            color = Color.White.copy(alpha = 0.9f),
+                            color = colors.textPrimary,
                             fontSize = 14.sp
                         )
                     }
@@ -541,7 +545,7 @@ fun StreakCalendarDialog(
                             onBuyFreezes(buyCount)
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0288D1)),
+                    colors = ButtonDefaults.buttonColors(containerColor = colors.primary),
                     shape = RoundedCornerShape(10.dp)
                 ) {
                     Text("Купить", color = Color.White, fontWeight = FontWeight.Bold)
@@ -549,7 +553,7 @@ fun StreakCalendarDialog(
             },
             dismissButton = {
                 TextButton(onClick = { showConfirmDialog = false }) {
-                    Text("Отмена", color = Color.White.copy(alpha = 0.6f))
+                    Text("Отмена", color = colors.textSecondary)
                 }
             }
         )
@@ -558,6 +562,7 @@ fun StreakCalendarDialog(
 
 @Composable
 private fun LegendItem(color: Color, icon: String?, label: String) {
+    val colors = AppTheme.colors
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -575,7 +580,7 @@ private fun LegendItem(color: Color, icon: String?, label: String) {
         }
         Text(
             text = label,
-            color = Color.White.copy(alpha = 0.65f),
+            color = colors.textSecondary,
             fontSize = 11.sp,
             fontWeight = FontWeight.Medium
         )

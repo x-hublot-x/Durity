@@ -24,6 +24,8 @@ import android.util.Log
 import android.view.Gravity
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
+
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -49,10 +51,28 @@ class AppBlockAccessibilityService : AccessibilityService() {
 
     @Volatile private var currentForegroundPackage: String? = null
     @Volatile private var isRecentsOpen = false
+
     @Volatile private var isInsideShorts = false
     @Volatile private var isExitingShorts = false
     @Volatile private var isYouTubeForeground = false
+
+    @Volatile private var isInsideReels = false
+    @Volatile private var isExitingReels = false
+    @Volatile private var isInstagramForeground = false
+
+    @Volatile private var isInsideVkClips = false
+    @Volatile private var isExitingVkClips = false
+    @Volatile private var isVkForeground = false
+    @Volatile private var currentVkPackage: String = VK_PACKAGE
+
+    @Volatile private var isInsideTwitchClips = false
+    @Volatile private var isExitingTwitchClips = false
+    @Volatile private var isTwitchForeground = false
+
     @Volatile private var lastShortsCheckTime = 0L
+    @Volatile private var lastReelsCheckTime = 0L
+    @Volatile private var lastVkClipsCheckTime = 0L
+    @Volatile private var lastTwitchClipsCheckTime = 0L
 
     private var windowManager: WindowManager? = null
     private var overlayView: android.view.View? = null
@@ -60,9 +80,21 @@ class AppBlockAccessibilityService : AccessibilityService() {
 
     companion object {
         private const val TAG = "BLOCK"
-        private const val YOUTUBE_PACKAGE = "com.google.android.youtube"
-        private const val YOUTUBE_SHORTS_PACKAGE = "com.google.android.youtube.shorts"
+        const val YOUTUBE_PACKAGE = "com.google.android.youtube"
+        const val YOUTUBE_SHORTS_PACKAGE = "com.google.android.youtube.shorts"
         private const val SHORTS_VIEW_ID = "$YOUTUBE_PACKAGE:id/reel_player_page_container"
+
+        const val INSTAGRAM_PACKAGE = "com.instagram.android"
+        const val INSTAGRAM_REELS_PACKAGE = "com.instagram.android.reels"
+
+        const val VK_PACKAGE = "com.vkontakte.android"
+        const val VK_CLIPS_STANDALONE_PACKAGE = "com.vk.clips"
+        const val VK_CLIENT_PACKAGE = "com.vk.vkclient"
+        const val VK_CLIPS_PACKAGE = "com.vkontakte.android.clips"
+
+        const val TWITCH_PACKAGE = "tv.twitch.android.app"
+        const val TWITCH_CLIPS_PACKAGE = "tv.twitch.android.app.clips"
+
 
         private const val SHORTS_CHECK_INTERVAL_MS = 1000L
         private const val BLOCK_COOLDOWN_MS = 2000L
@@ -74,10 +106,25 @@ class AppBlockAccessibilityService : AccessibilityService() {
 
         @Volatile var shortsTimeSpentSeconds = 0L
             private set
+        @Volatile var reelsTimeSpentSeconds = 0L
+            private set
+        @Volatile var vkClipsTimeSpentSeconds = 0L
+            private set
+        @Volatile var twitchClipsTimeSpentSeconds = 0L
+            private set
 
         fun onUnlocked() {
-            // Время использования НЕ сбрасывается — при разблокировке увеличивается лимит (+30 минут),
-            // поэтому использованное время честно сохраняется (например, 5/35 минут вместо 0/35 минут).
+            // Время использования НЕ сбрасывается — при разблокировке увеличивается лимит (+30 минут)
+        }
+
+        fun getShortVideoTimeSpent(pkg: String): Long {
+            return when (pkg) {
+                YOUTUBE_SHORTS_PACKAGE -> shortsTimeSpentSeconds
+                INSTAGRAM_REELS_PACKAGE -> reelsTimeSpentSeconds
+                VK_CLIPS_PACKAGE -> vkClipsTimeSpentSeconds
+                TWITCH_CLIPS_PACKAGE -> twitchClipsTimeSpentSeconds
+                else -> 0L
+            }
         }
 
         val effectiveSeconds: Long
@@ -86,36 +133,76 @@ class AppBlockAccessibilityService : AccessibilityService() {
 
     private var currentTrackingDay: String = AppTimerStore.getTodayKey()
 
-    private val shortsTicker = object : Runnable {
+    private val shortVideosTicker = object : Runnable {
         override fun run() {
             val todayKey = AppTimerStore.getTodayKey()
             if (todayKey != currentTrackingDay) {
                 currentTrackingDay = todayKey
                 shortsTimeSpentSeconds = 0L
-                AppTimerStore.saveShortsSpentSeconds(0L)
+                reelsTimeSpentSeconds = 0L
+                vkClipsTimeSpentSeconds = 0L
+                twitchClipsTimeSpentSeconds = 0L
+                AppTimerStore.saveShortVideoSpentSeconds(YOUTUBE_SHORTS_PACKAGE, 0L)
+                AppTimerStore.saveShortVideoSpentSeconds(INSTAGRAM_REELS_PACKAGE, 0L)
+                AppTimerStore.saveShortVideoSpentSeconds(VK_CLIPS_PACKAGE, 0L)
+                AppTimerStore.saveShortVideoSpentSeconds(TWITCH_CLIPS_PACKAGE, 0L)
             }
 
-            // Периодически проверяем Shorts пока открыт YouTube, чтобы сразу подхватывать переход
             if (isYouTubeForeground && !isExitingShorts) {
-                bgHandler.post {
-                    try { checkYouTubeShortsState() } catch (_: Exception) {}
-                }
+                bgHandler.post { try { checkYouTubeShortsState() } catch (_: Exception) {} }
+            }
+            if (isInstagramForeground && !isExitingReels) {
+                bgHandler.post { try { checkInstagramReelsState() } catch (_: Exception) {} }
+            }
+            if (isVkForeground && !isExitingVkClips) {
+                bgHandler.post { try { checkVkClipsState() } catch (_: Exception) {} }
+            }
+            if (isTwitchForeground && !isExitingTwitchClips) {
+                bgHandler.post { try { checkTwitchClipsState() } catch (_: Exception) {} }
             }
 
-            if (isInsideShorts && !isExitingShorts) {
+            checkAndTick(YOUTUBE_SHORTS_PACKAGE, YOUTUBE_PACKAGE, isInsideShorts, isExitingShorts) {
                 shortsTimeSpentSeconds++
-                AppTimerStore.saveShortsSpentSeconds(shortsTimeSpentSeconds)
-                val timerData = AppTimerStore.limits[YOUTUBE_SHORTS_PACKAGE]
-                if (timerData != null && timerData.limitMinutes > 0) {
-                    if (shortsTimeSpentSeconds >= timerData.limitMinutes * 60L) {
-                        AppTimerStore.markExhausted(YOUTUBE_SHORTS_PACKAGE)
-                        exitShortsToMainYouTube()
-                    }
-                }
+                shortsTimeSpentSeconds
             }
+            checkAndTick(INSTAGRAM_REELS_PACKAGE, INSTAGRAM_PACKAGE, isInsideReels, isExitingReels) {
+                reelsTimeSpentSeconds++
+                reelsTimeSpentSeconds
+            }
+            checkAndTick(VK_CLIPS_PACKAGE, currentVkPackage, isInsideVkClips, isExitingVkClips) {
+                vkClipsTimeSpentSeconds++
+                Log.d(TAG, "VK Clips TICK: $vkClipsTimeSpentSeconds seconds (inside=$isInsideVkClips)")
+                vkClipsTimeSpentSeconds
+            }
+            checkAndTick(TWITCH_CLIPS_PACKAGE, TWITCH_PACKAGE, isInsideTwitchClips, isExitingTwitchClips) {
+                twitchClipsTimeSpentSeconds++
+                twitchClipsTimeSpentSeconds
+            }
+
             mainHandler.postDelayed(this, 1000)
         }
     }
+
+    private inline fun checkAndTick(
+        virtualPkg: String,
+        parentPkg: String,
+        isInside: Boolean,
+        isExiting: Boolean,
+        increment: () -> Long
+    ) {
+        if (isInside && !isExiting) {
+            val spent = increment()
+            AppTimerStore.saveShortVideoSpentSeconds(virtualPkg, spent)
+            val timerData = AppTimerStore.limits[virtualPkg]
+            if (timerData != null && timerData.limitMinutes > 0) {
+                if (spent >= timerData.limitMinutes * 60L) {
+                    AppTimerStore.markExhausted(virtualPkg)
+                    exitShortVideoToMain(parentPkg, virtualPkg)
+                }
+            }
+        }
+    }
+
 
     @Volatile private var recentsOpenedAt = 0L
 
@@ -155,24 +242,27 @@ class AppBlockAccessibilityService : AccessibilityService() {
         createNotificationChannel()
 
         serviceInfo = AccessibilityServiceInfo().apply {
-            eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+            eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or AccessibilityEvent.TYPE_WINDOWS_CHANGED
             feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
             notificationTimeout = 100
-            flags = AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS
+            flags = AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS or AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
         }
 
         bgThread = HandlerThread("BlockChecker").also { it.start() }
         bgHandler = Handler(bgThread.looper)
 
         currentTrackingDay = AppTimerStore.getTodayKey()
-        shortsTimeSpentSeconds = AppTimerStore.getShortsSpentSeconds()
+        shortsTimeSpentSeconds = AppTimerStore.getShortVideoSpentSeconds(YOUTUBE_SHORTS_PACKAGE)
+        reelsTimeSpentSeconds = AppTimerStore.getShortVideoSpentSeconds(INSTAGRAM_REELS_PACKAGE)
+        vkClipsTimeSpentSeconds = AppTimerStore.getShortVideoSpentSeconds(VK_CLIPS_PACKAGE)
+        twitchClipsTimeSpentSeconds = AppTimerStore.getShortVideoSpentSeconds(TWITCH_CLIPS_PACKAGE)
 
-        mainHandler.post(shortsTicker)
+        mainHandler.post(shortVideosTicker)
         mainHandler.post(blockTicker)
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event == null || event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
+        if (event == null || (event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED && event.eventType != AccessibilityEvent.TYPE_WINDOWS_CHANGED)) return
 
         val packageName = event.packageName?.toString() ?: return
         val now = System.currentTimeMillis()
@@ -190,37 +280,60 @@ class AppBlockAccessibilityService : AccessibilityService() {
         if (isSystemPackage(packageName)) return
         if (packageName == applicationContext.packageName) {
             currentForegroundPackage = null
-            if (isInsideShorts) {
-                AppTimerStore.saveShortsSpentSeconds(shortsTimeSpentSeconds)
-            }
-            isYouTubeForeground = false
-            isInsideShorts = false
+            saveActiveShortVideoSeconds()
+            resetForegroundShortVideoFlags()
             return
         }
 
         // Приложение сменилось — фиксируем время начала сессии
         if (packageName != currentForegroundPackage) {
+            saveActiveShortVideoSeconds()
+            resetForegroundShortVideoFlags()
             currentForegroundPackage = packageName
-            // Запоминаем момент открытия если ещё не записан
             if (!sessionStartTimes.containsKey(packageName)) {
                 sessionStartTimes[packageName] = now
             }
         }
 
-        if (packageName == YOUTUBE_PACKAGE) {
-            isYouTubeForeground = true
-            if (now - lastShortsCheckTime >= SHORTS_CHECK_INTERVAL_MS) {
-                lastShortsCheckTime = now
-                scheduleShortsCheck()
+        when (packageName) {
+            YOUTUBE_PACKAGE -> {
+                isYouTubeForeground = true
+                if (now - lastShortsCheckTime >= SHORTS_CHECK_INTERVAL_MS) {
+                    lastShortsCheckTime = now
+                    scheduleShortsCheck()
+                }
             }
-        } else {
-            if (isInsideShorts) {
-                AppTimerStore.saveShortsSpentSeconds(shortsTimeSpentSeconds)
+            INSTAGRAM_PACKAGE -> {
+                isInstagramForeground = true
+                if (now - lastReelsCheckTime >= SHORTS_CHECK_INTERVAL_MS) {
+                    lastReelsCheckTime = now
+                    scheduleReelsCheck()
+                }
             }
-            isYouTubeForeground = false
-            isInsideShorts = false
-            if (isExitingShorts) isExitingShorts = false
+            VK_PACKAGE, VK_CLIPS_STANDALONE_PACKAGE, VK_CLIENT_PACKAGE -> {
+                isVkForeground = true
+                currentVkPackage = packageName
+                if (packageName == VK_CLIPS_STANDALONE_PACKAGE) {
+                    isInsideVkClips = true
+                }
+                if (now - lastVkClipsCheckTime >= SHORTS_CHECK_INTERVAL_MS) {
+                    lastVkClipsCheckTime = now
+                    scheduleVkClipsCheck()
+                }
+            }
+            TWITCH_PACKAGE -> {
+                isTwitchForeground = true
+                if (now - lastTwitchClipsCheckTime >= SHORTS_CHECK_INTERVAL_MS) {
+                    lastTwitchClipsCheckTime = now
+                    scheduleTwitchClipsCheck()
+                }
+            }
+            else -> {
+                saveActiveShortVideoSeconds()
+                resetForegroundShortVideoFlags()
+            }
         }
+
 
         if (now >= (blockCooldowns[packageName] ?: 0L)) {
             bgHandler.post {
@@ -235,24 +348,320 @@ class AppBlockAccessibilityService : AccessibilityService() {
         }
     }
 
+    private fun saveActiveShortVideoSeconds() {
+        if (isInsideShorts) AppTimerStore.saveShortVideoSpentSeconds(YOUTUBE_SHORTS_PACKAGE, shortsTimeSpentSeconds)
+        if (isInsideReels) AppTimerStore.saveShortVideoSpentSeconds(INSTAGRAM_REELS_PACKAGE, reelsTimeSpentSeconds)
+        if (isInsideVkClips) AppTimerStore.saveShortVideoSpentSeconds(VK_CLIPS_PACKAGE, vkClipsTimeSpentSeconds)
+        if (isInsideTwitchClips) AppTimerStore.saveShortVideoSpentSeconds(TWITCH_CLIPS_PACKAGE, twitchClipsTimeSpentSeconds)
+    }
+
+    private fun resetForegroundShortVideoFlags() {
+        isYouTubeForeground = false
+        isInsideShorts = false
+        if (isExitingShorts) isExitingShorts = false
+
+        isInstagramForeground = false
+        isInsideReels = false
+        if (isExitingReels) isExitingReels = false
+
+        isVkForeground = false
+        isInsideVkClips = false
+        if (isExitingVkClips) isExitingVkClips = false
+
+        isTwitchForeground = false
+        isInsideTwitchClips = false
+        if (isExitingTwitchClips) isExitingTwitchClips = false
+    }
+
     private fun scheduleShortsCheck() {
         bgHandler.post { try { checkYouTubeShortsState() } catch (_: Exception) {} }
+    }
+
+    private fun scheduleReelsCheck() {
+        bgHandler.post { try { checkInstagramReelsState() } catch (_: Exception) {} }
+    }
+
+    private fun scheduleVkClipsCheck() {
+        bgHandler.post { try { checkVkClipsState() } catch (_: Exception) {} }
+    }
+
+    private fun scheduleTwitchClipsCheck() {
+        bgHandler.post { try { checkTwitchClipsState() } catch (_: Exception) {} }
+    }
+
+    private inline fun scanNodes(
+        root: AccessibilityNodeInfo,
+        maxNodes: Int = 120,
+        predicate: (node: AccessibilityNodeInfo) -> Boolean
+    ): Boolean {
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(root)
+        var count = 0
+        while (queue.isNotEmpty() && count < maxNodes) {
+            val node = queue.removeFirst()
+            count++
+            if (predicate(node)) {
+                return true
+            }
+            for (i in 0 until node.childCount) {
+                val child = node.getChild(i)
+                if (child != null) {
+                    queue.add(child)
+                }
+            }
+        }
+        return false
+    }
+
+    private inline fun scanNodesForMarker(
+        root: AccessibilityNodeInfo,
+        maxNodes: Int = 100,
+        predicate: (viewId: String?, className: CharSequence?, text: CharSequence?, contentDescription: CharSequence?) -> Boolean
+    ): Boolean {
+        return scanNodes(root, maxNodes) { node ->
+            predicate(node.viewIdResourceName, node.className, node.text, node.contentDescription)
+        }
     }
 
     private fun checkYouTubeShortsState() {
         if (!isYouTubeForeground) { isInsideShorts = false; return }
         val rootNode = rootInActiveWindow ?: return
         try {
-            val shortsNodes = rootNode.findAccessibilityNodeInfosByViewId(SHORTS_VIEW_ID)
-            val nowInShorts = !shortsNodes.isNullOrEmpty()
+            var inShortsPlayer = false
+            var inShortsTab = false
+            var inHomeTab = false
+
+            // Ищем элементы, уникальные для плеера YouTube Shorts (reel_player_)
+            val shortsViewIds = listOf(
+                "com.google.android.youtube:id/reel_player_page_container",
+                "com.google.android.youtube:id/reel_player_like_button",
+                "com.google.android.youtube:id/reel_player_comment_button",
+                "com.google.android.youtube:id/reel_player_share_button",
+                "com.google.android.youtube:id/reel_player_remix_button",
+                "com.google.android.youtube:id/reel_player_pivot_button",
+                "com.google.android.youtube:id/reel_player_view",
+                "com.google.android.youtube:id/reel_player_root"
+            )
+            for (id in shortsViewIds) {
+                val nodes = rootNode.findAccessibilityNodeInfosByViewId(id)
+                if (!nodes.isNullOrEmpty()) {
+                    inShortsPlayer = true
+                    break
+                }
+            }
+
+            scanNodes(rootNode, maxNodes = 120) { node ->
+                val vId = node.viewIdResourceName?.lowercase() ?: ""
+                val desc = node.contentDescription?.toString()?.lowercase() ?: ""
+                val text = node.text?.toString()?.lowercase() ?: ""
+                val isSelected = node.isSelected || desc.contains("selected") || desc.contains("выбрано")
+
+                // Главная страница YouTube
+                if (vId.contains("pivot_home") || (isSelected && (desc == "главная" || text == "главная" || desc == "home" || text == "home"))) {
+                    inHomeTab = true
+                }
+
+                // Выбранная вкладка Shorts в нижней панели (строго со статусом isSelected!)
+                if (isSelected && (vId.contains("reel") || desc == "shorts" || text == "shorts")) {
+                    inShortsTab = true
+                }
+
+                // Элементы управления Shorts плеера
+                if (vId.contains("reel_player_") || vId.contains("reel_like") || vId.contains("reel_comment")) {
+                    inShortsPlayer = true
+                }
+
+                false
+            }
+
+            // Если открыта Главная страница и плеер Shorts не открыт — это главная лента, а не Shorts!
+            val nowInShorts = if (inHomeTab && !inShortsPlayer) {
+                false
+            } else {
+                inShortsPlayer || inShortsTab
+            }
+
+            Log.d(TAG, "YouTube Shorts check: inShorts=$nowInShorts (player=$inShortsPlayer, tab=$inShortsTab, home=$inHomeTab), isExiting=$isExitingShorts")
+
             if (!nowInShorts && isExitingShorts) isExitingShorts = false
             isInsideShorts = nowInShorts
-            shortsNodes?.forEach { it.recycle() }
+            if (nowInShorts && !isExitingShorts && AppTimerStore.isExhausted(YOUTUBE_SHORTS_PACKAGE)) {
+                mainHandler.post { exitShortVideoToMain(YOUTUBE_PACKAGE, YOUTUBE_SHORTS_PACKAGE) }
+            }
         } catch (_: Exception) {
-        } finally {
-            try { rootNode.recycle() } catch (_: Exception) {}
         }
     }
+
+    private fun checkInstagramReelsState() {
+        if (!isInstagramForeground) { isInsideReels = false; return }
+        val rootNode = rootInActiveWindow ?: return
+        try {
+            var isReelsTabSelected = false
+            var isFeedTabSelected = false
+            var isOtherTabSelected = false
+            var hasReelsHeader = false
+            var hasHomeFeedVisible = false
+            var hasClipsPagerVisible = false
+
+            scanNodes(rootNode, maxNodes = 140) { node ->
+                val vId = node.viewIdResourceName?.lowercase() ?: ""
+                val desc = node.contentDescription?.toString()?.lowercase() ?: ""
+                val text = node.text?.toString()?.lowercase() ?: ""
+                val isSelected = node.isSelected || desc.contains("selected") || desc.contains("выбрано") || desc.contains("активн")
+                val isVisible = node.isVisibleToUser
+
+                // 1. Проверяем выбранную вкладку в нижней панели
+                if (isSelected) {
+                    if (vId.contains("feed_tab") || desc == "главная" || desc == "home" || text == "главная" || text == "home") {
+                        isFeedTabSelected = true
+                    }
+                    if (vId.contains("search_tab") || desc == "поиск" || desc == "explore" || text == "поиск" || text == "explore") {
+                        isOtherTabSelected = true
+                    }
+                    if (vId.contains("profile_tab") || desc == "профиль" || desc == "profile" || text == "профиль" || text == "profile") {
+                        isOtherTabSelected = true
+                    }
+                    if (vId.contains("clips_tab") || vId.contains("reels_tab") || desc == "reels" || desc == "рилс" || text == "reels" || text == "рилс") {
+                        isReelsTabSelected = true
+                    }
+                }
+
+                // 2. Элементы, видимые пользователю ТОЛЬКО на главной ленте Instagram (Home feed):
+                // Stories (reel_tray), посты ленты (row_feed, feed_recycler), Direct (action_bar_inbox), логотип Instagram
+                if (isVisible && (vId.contains("row_feed") || vId.contains("feed_recycler") ||
+                    vId.contains("action_bar_inbox") || vId.contains("reel_tray") ||
+                    (vId.contains("action_bar_title") && (text == "instagram" || desc == "instagram")))) {
+                    hasHomeFeedVisible = true
+                }
+
+                // 3. Заголовок "Reels" вверху экрана вкладки Reels:
+                if (isVisible && (text == "reels" || text == "рилс" || text == "рилсы") &&
+                    !vId.contains("tab") && !vId.contains("nav")) {
+                    hasReelsHeader = true
+                }
+
+                // 4. Полноэкранный вертикальный пейджер Reels:
+                if (isVisible && vId.contains("clips_viewer_view_pager")) {
+                    hasClipsPagerVisible = true
+                }
+
+                false
+            }
+
+            // Блокируем ТОЛЬКО саму вкладку Reels.
+            // Если видима главная лента новостей или выбрана любая другая вкладка — это норма, НЕ блокируем!
+            val found = if (hasHomeFeedVisible || isFeedTabSelected || isOtherTabSelected) {
+                false
+            } else {
+                isReelsTabSelected || hasReelsHeader || hasClipsPagerVisible
+            }
+
+            Log.d(TAG, "Instagram Reels check: found=$found (reelsTab=$isReelsTabSelected, header=$hasReelsHeader, pager=$hasClipsPagerVisible, homeFeed=$hasHomeFeedVisible, feedTab=$isFeedTabSelected, otherTab=$isOtherTabSelected), isExiting=$isExitingReels")
+
+            if (!found && isExitingReels) isExitingReels = false
+            isInsideReels = found
+            if (found && !isExitingReels && AppTimerStore.isExhausted(INSTAGRAM_REELS_PACKAGE)) {
+                mainHandler.post { exitShortVideoToMain(INSTAGRAM_PACKAGE, INSTAGRAM_REELS_PACKAGE) }
+            }
+        } catch (_: Exception) {
+        }
+    }
+
+
+    private fun checkVkClipsState() {
+        if (!isVkForeground) { isInsideVkClips = false; return }
+        if (currentVkPackage == VK_CLIPS_STANDALONE_PACKAGE) {
+            isInsideVkClips = true
+            if (!isExitingVkClips && AppTimerStore.isExhausted(VK_CLIPS_PACKAGE)) {
+                mainHandler.post { exitShortVideoToMain(currentVkPackage, VK_CLIPS_PACKAGE) }
+            }
+            return
+        }
+
+        val rootNode = rootInActiveWindow ?: return
+        try {
+            var inClipsViewer = false
+            var inHomeTab = false
+
+            scanNodes(rootNode, maxNodes = 140) { node ->
+                val vId = node.viewIdResourceName?.lowercase() ?: ""
+                val desc = node.contentDescription?.toString()?.lowercase() ?: ""
+                val text = node.text?.toString()?.lowercase() ?: ""
+                val isSelected = node.isSelected || desc.contains("selected") || desc.contains("выбрано")
+
+                if (isSelected && (vId.contains("tab_home") || vId.contains("tab_news") || desc == "главная" || desc == "новости" || text == "главная" || text == "новости")) {
+                    inHomeTab = true
+                }
+
+                // Элементы, уникальные для плеера клипов ВКонтакте
+                if (vId.contains("clips_like") || vId.contains("clips_comment") ||
+                    vId.contains("clips_share") || vId.contains("clips_sound") ||
+                    vId.contains("clips_music") || vId.contains("clips_author") ||
+                    vId.contains("clips_video") || vId.contains("clips_player") ||
+                    vId.contains("clips_viewer") || vId.contains("clips_view_pager") ||
+                    vId.contains("clips_pager") || vId.contains("clips_item_container") ||
+                    vId.contains("clips_wrapper") || vId.contains("clips_fragment")) {
+                    inClipsViewer = true
+                }
+
+                false
+            }
+
+            val found = if (inHomeTab && !inClipsViewer) {
+                false
+            } else {
+                inClipsViewer
+            }
+
+            Log.d(TAG, "VK Clips check: found=$found (viewer=$inClipsViewer, homeTab=$inHomeTab), isExiting=$isExitingVkClips, spent=$vkClipsTimeSpentSeconds s")
+
+            if (!found && isExitingVkClips) isExitingVkClips = false
+            isInsideVkClips = found
+            if (found && !isExitingVkClips && AppTimerStore.isExhausted(VK_CLIPS_PACKAGE)) {
+                mainHandler.post { exitShortVideoToMain(currentVkPackage, VK_CLIPS_PACKAGE) }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in checkVkClipsState", e)
+        }
+    }
+
+    private fun checkTwitchClipsState() {
+        if (!isTwitchForeground) { isInsideTwitchClips = false; return }
+        val rootNode = rootInActiveWindow ?: return
+        try {
+            val clipIds = listOf(
+                "tv.twitch.android.app:id/clips_player_view",
+                "tv.twitch.android.app:id/clips_card_container",
+                "tv.twitch.android.app:id/clip_player",
+                "tv.twitch.android.app:id/discovery_feed",
+                "tv.twitch.android.app:id/feed_recycler_view",
+                "tv.twitch.android.app:id/clips_feed"
+            )
+            var found = false
+            for (id in clipIds) {
+                val nodes = rootNode.findAccessibilityNodeInfosByViewId(id)
+                if (!nodes.isNullOrEmpty()) {
+                    found = true
+                    break
+                }
+            }
+            if (!found) {
+                found = scanNodesForMarker(rootNode, maxNodes = 100) { viewId, cls, _, _ ->
+                    val lowerId = viewId?.lowercase() ?: ""
+                    val lowerCls = cls?.toString()?.lowercase() ?: ""
+                    (lowerId.contains("clip") && !lowerId.contains("tab")) || lowerCls.contains("clip")
+                }
+            }
+            if (!found && isExitingTwitchClips) isExitingTwitchClips = false
+            isInsideTwitchClips = found
+            if (found && !isExitingTwitchClips && AppTimerStore.isExhausted(TWITCH_CLIPS_PACKAGE)) {
+                mainHandler.post { exitShortVideoToMain(TWITCH_PACKAGE, TWITCH_CLIPS_PACKAGE) }
+            }
+        } catch (_: Exception) {
+        }
+    }
+
+
 
     // ─── Подсчёт времени: UsageStats + текущая сессия из памяти ─────────────
 
@@ -322,28 +731,140 @@ class AppBlockAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun exitShortsToMainYouTube() {
-        if (isExitingShorts) return
-        isInsideShorts = false
-        isExitingShorts = true
-
-        performGlobalAction(GLOBAL_ACTION_BACK)
-
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com")).apply {
-            setPackage(YOUTUBE_PACKAGE)
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+    private fun clickTabNode(
+        root: AccessibilityNodeInfo,
+        targetIds: List<String>,
+        targetKeywords: List<String>
+    ): Boolean {
+        for (idPart in targetIds) {
+            val list = root.findAccessibilityNodeInfosByViewId(idPart)
+            if (!list.isNullOrEmpty()) {
+                for (node in list) {
+                    if (clickNodeOrParent(node)) return true
+                }
+            }
         }
-        try { startActivity(intent) } catch (_: Exception) { performGlobalAction(GLOBAL_ACTION_BACK) }
+
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(root)
+        var count = 0
+        while (queue.isNotEmpty() && count < 120) {
+            val node = queue.removeFirst()
+            count++
+            val vId = node.viewIdResourceName?.lowercase() ?: ""
+            val desc = node.contentDescription?.toString()?.lowercase() ?: ""
+            val text = node.text?.toString()?.lowercase() ?: ""
+
+            val matchId = targetIds.any { vId.endsWith(it) || vId.contains(it) }
+            val matchDesc = targetKeywords.any { desc == it || text == it }
+
+            if (matchId || matchDesc) {
+                if (clickNodeOrParent(node)) return true
+            }
+
+            for (i in 0 until node.childCount) {
+                val child = node.getChild(i)
+                if (child != null) queue.add(child)
+            }
+        }
+        return false
+    }
+
+    private fun clickNodeOrParent(node: AccessibilityNodeInfo): Boolean {
+        var curr: AccessibilityNodeInfo? = node
+        var depth = 0
+        while (curr != null && depth < 3) {
+            if (curr.isClickable) {
+                return curr.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            }
+            curr = curr.parent
+            depth++
+        }
+        return false
+    }
+
+    private fun exitShortVideoToMain(parentPackage: String, virtualPackage: String) {
+        val fg = currentForegroundPackage
+        val isTargetFg = fg == parentPackage ||
+                (parentPackage == VK_PACKAGE && (fg == VK_CLIPS_STANDALONE_PACKAGE || fg == VK_CLIENT_PACKAGE))
+        if (!isTargetFg) return
+
+        val exitingFlag = when (virtualPackage) {
+            YOUTUBE_SHORTS_PACKAGE -> isExitingShorts
+            INSTAGRAM_REELS_PACKAGE -> isExitingReels
+            VK_CLIPS_PACKAGE -> isExitingVkClips
+            TWITCH_CLIPS_PACKAGE -> isExitingTwitchClips
+            else -> false
+        }
+        if (exitingFlag) return
+
+        when (virtualPackage) {
+            YOUTUBE_SHORTS_PACKAGE -> { isInsideShorts = false; isExitingShorts = true }
+            INSTAGRAM_REELS_PACKAGE -> { isInsideReels = false; isExitingReels = true }
+            VK_CLIPS_PACKAGE -> { isInsideVkClips = false; isExitingVkClips = true }
+            TWITCH_CLIPS_PACKAGE -> { isInsideTwitchClips = false; isExitingTwitchClips = true }
+        }
+
+        val rootNode = try { rootInActiveWindow } catch (_: Exception) { null }
+        var clickedHomeTab = false
+
+        if (rootNode != null) {
+            clickedHomeTab = when (virtualPackage) {
+                INSTAGRAM_REELS_PACKAGE -> clickTabNode(rootNode, listOf("feed_tab"), listOf("главная", "home"))
+                VK_CLIPS_PACKAGE -> clickTabNode(rootNode, listOf("tab_home", "tab_news", "nav_feed"), listOf("главная", "новости"))
+                TWITCH_CLIPS_PACKAGE -> clickTabNode(rootNode, listOf("tab_following", "tab_browse", "nav_following"), listOf("отслеживаемое", "главная", "following", "browse"))
+                YOUTUBE_SHORTS_PACKAGE -> clickTabNode(rootNode, listOf("pivot_home", "home_tab"), listOf("главная", "home"))
+                else -> false
+            }
+        }
+
+        // Если не удалось переключиться на вкладку "Главная" (например, открыт полноэкранный плеер), нажимаем НАЗАД
+        if (!clickedHomeTab) {
+            performGlobalAction(GLOBAL_ACTION_BACK)
+        }
+
+        // Запуск через стандартный Launcher Intent родительского приложения
+        try {
+            val intent: Intent? = if (parentPackage == YOUTUBE_PACKAGE) {
+                Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com")).apply {
+                    setPackage(YOUTUBE_PACKAGE)
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                }
+            } else {
+                packageManager.getLaunchIntentForPackage(parentPackage)?.apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                }
+            }
+            if (intent != null && !clickedHomeTab) {
+                startActivity(intent)
+            }
+        } catch (_: Exception) {
+            if (!clickedHomeTab) {
+                performGlobalAction(GLOBAL_ACTION_BACK)
+            }
+        }
 
         val now = System.currentTimeMillis()
         if (now - lastOverlayTime > 3000) {
             lastOverlayTime = now
             bumpVolumeAndPlaySound()
-            showBlockOverlay(YOUTUBE_SHORTS_PACKAGE)
+            showBlockOverlay(virtualPackage)
         }
 
-        mainHandler.postDelayed({ isExitingShorts = false }, 3000)
+        mainHandler.postDelayed({
+            when (virtualPackage) {
+                YOUTUBE_SHORTS_PACKAGE -> isExitingShorts = false
+                INSTAGRAM_REELS_PACKAGE -> isExitingReels = false
+                VK_CLIPS_PACKAGE -> isExitingVkClips = false
+                TWITCH_CLIPS_PACKAGE -> isExitingTwitchClips = false
+            }
+        }, 3000)
     }
+
+    private fun exitShortsToMainYouTube() {
+        exitShortVideoToMain(YOUTUBE_PACKAGE, YOUTUBE_SHORTS_PACKAGE)
+    }
+
 
     // ─── Звук + громкость ────────────────────────────────────────────────────
 
@@ -450,7 +971,13 @@ class AppBlockAccessibilityService : AccessibilityService() {
 
         val label = when (packageName) {
             YOUTUBE_SHORTS_PACKAGE -> "YouTube Shorts"
+            INSTAGRAM_REELS_PACKAGE -> "Instagram Reels"
+            VK_CLIPS_PACKAGE -> "VK Клипы"
+            TWITCH_CLIPS_PACKAGE -> "Twitch Клипы"
             YOUTUBE_PACKAGE -> "YouTube"
+            INSTAGRAM_PACKAGE -> "Instagram"
+            VK_PACKAGE -> "ВКонтакте"
+            TWITCH_PACKAGE -> "Twitch"
             else -> try {
                 applicationContext.packageManager.getApplicationLabel(
                     applicationContext.packageManager.getApplicationInfo(packageName, 0)
@@ -552,12 +1079,18 @@ class AppBlockAccessibilityService : AccessibilityService() {
                 pkg == "com.android.settings" ||
                 pkg == "com.android.systemui" ||
                 pkg.contains("launcher", ignoreCase = true) ||
-                pkg == YOUTUBE_SHORTS_PACKAGE
+                pkg == YOUTUBE_SHORTS_PACKAGE ||
+                pkg == INSTAGRAM_REELS_PACKAGE ||
+                pkg == VK_CLIPS_PACKAGE ||
+                pkg == TWITCH_CLIPS_PACKAGE ||
+                pkg == VK_CLIPS_STANDALONE_PACKAGE ||
+                pkg == VK_CLIENT_PACKAGE
+
 
     override fun onInterrupt() {}
 
     override fun onDestroy() {
-        mainHandler.removeCallbacks(shortsTicker)
+        mainHandler.removeCallbacks(shortVideosTicker)
         mainHandler.removeCallbacks(blockTicker)
         bgHandler.removeCallbacksAndMessages(null)
         bgThread.quitSafely()

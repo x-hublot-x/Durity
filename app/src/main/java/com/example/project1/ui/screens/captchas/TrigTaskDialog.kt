@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.project1.data.model.TrigTask
 import com.example.project1.ui.components.MathView
+import com.example.project1.ui.theme.AppTheme
 import kotlin.math.*
 
 @SuppressLint("UnrememberedMutableState")
@@ -93,6 +94,7 @@ fun TrigTaskDialog(
                         .background(Color(0xFF14141E), shape = RoundedCornerShape(16.dp)),
                     contentAlignment = Alignment.Center
                 ) {
+                    val accentColor = AppTheme.accent
                     Canvas(
                         modifier = Modifier
                             .fillMaxSize()
@@ -143,7 +145,7 @@ fun TrigTaskDialog(
 
                             // Линия от центра к точке
                             drawLine(
-                                color = Color(0xFFFF5252).copy(alpha = 0.5f),
+                                color = accentColor.copy(alpha = 0.5f),
                                 start = center,
                                 end = Offset(ptX, ptY),
                                 strokeWidth = 2.dp.toPx(),
@@ -152,7 +154,7 @@ fun TrigTaskDialog(
 
                             // Точка выбора
                             drawCircle(
-                                color = Color(0xFFFF5252),
+                                color = accentColor,
                                 radius = 7.dp.toPx(),
                                 center = Offset(ptX, ptY)
                             )
@@ -201,7 +203,7 @@ fun TrigTaskDialog(
                                 errorMessage = "Неверный угол! Попробуйте еще раз."
                             }
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252)),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppTheme.accent),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.weight(1f)
                     ) {

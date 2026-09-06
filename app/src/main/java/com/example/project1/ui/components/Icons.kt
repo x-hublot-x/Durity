@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
+import com.example.project1.ui.theme.AppTheme
 
 @Composable
 fun AutoAddIcon(modifier: Modifier = Modifier) {
@@ -49,7 +50,7 @@ fun AutoAddIcon(modifier: Modifier = Modifier) {
 @Composable
 fun SamsungAiStarsIcon(
     modifier: Modifier = Modifier,
-    tint: Color = Color(0xFFFF5252)
+    tint: Color = AppTheme.accent
 ) {
     Canvas(modifier = modifier.size(24.dp)) {
         val w = size.width
@@ -86,10 +87,11 @@ fun MinimalRedLoadingSpinner(modifier: Modifier = Modifier) {
         label = "rotation_angle"
     )
 
+    val color = AppTheme.accent
     Canvas(modifier = modifier.size(48.dp)) {
         val strokeWidth = 4.dp.toPx()
         drawArc(
-            color = Color(0xFFFF5252),
+            color = color,
             startAngle = angle,
             sweepAngle = 270f,
             useCenter = false,

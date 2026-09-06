@@ -33,13 +33,17 @@ fun getAppUsageMinutesThisWeek(context: Context, packageName: String, addedTimes
     }
     val lastResetTimestamp = calendar.timeInMillis
 
-    if (packageName == "com.google.android.youtube.shorts") {
+    if (packageName == "com.google.android.youtube.shorts" ||
+        packageName == "com.instagram.android.reels" ||
+        packageName == "com.vkontakte.android.clips" ||
+        packageName == "tv.twitch.android.app.clips") {
         val seconds = maxOf(
-            AppBlockAccessibilityService.shortsTimeSpentSeconds,
-            com.example.project1.data.storage.AppTimerStore.getShortsSpentSeconds()
+            AppBlockAccessibilityService.getShortVideoTimeSpent(packageName),
+            com.example.project1.data.storage.AppTimerStore.getShortVideoSpentSeconds(packageName)
         )
         return (seconds / 60).toInt()
     }
+
 
     // queryEvents точнее чем queryUsageStats(INTERVAL_DAILY):
     // INTERVAL_DAILY игнорирует startTime и отдаёт данные за весь суточный интервал Android.

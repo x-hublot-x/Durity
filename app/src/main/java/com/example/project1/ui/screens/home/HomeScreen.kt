@@ -21,9 +21,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.project1.R
+import com.example.project1.data.model.AppInfo
 import com.example.project1.data.storage.AiTestManager
 import com.example.project1.data.storage.DailyTaskStorage
 import com.example.project1.ui.components.CoinIcon
+import com.example.project1.ui.theme.AppTheme
+import com.example.project1.util.formatMinutes
 import java.util.Calendar
 
 // ── Утилита: имя пользователя из профиля личности ────────────────────────────
@@ -51,12 +54,14 @@ fun getGreeting(): String {
 fun HomeScreen(
     onNavigateToDailyTask: () -> Unit,
     onShowTestDialog: () -> Unit,
-    onNavigateToChat: (sessionTitle: String, firstMessage: String, taskLatex: String) -> Unit
+    onNavigateToChat: (sessionTitle: String, firstMessage: String, taskLatex: String) -> Unit,
+    onNavigateToStats: () -> Unit = {},
+    appsWithTimers: List<AppInfo> = emptyList()
 ) {
     val context = LocalContext.current
+    val colors = AppTheme.colors
 
     val isTestPassed = AiTestManager.isTestCompleted
-    // Читаем savedName напрямую — это mutableStateOf, Compose отследит изменения
     val savedName = AiTestManager.savedName
     val userName = if (savedName.isNotBlank())
         savedName.trim().split(" ").firstOrNull()?.takeIf { it.isNotBlank() } ?: savedName.trim()
@@ -66,6 +71,7 @@ fun HomeScreen(
     var coins by remember { mutableIntStateOf(DailyTaskStorage.getCoins(context)) }
     val isSolvedToday = remember { DailyTaskStorage.isSolvedToday(context) }
     val streak = remember { DailyTaskStorage.getStreak(context) }
+    val totalUsageMinutes = remember(appsWithTimers) { appsWithTimers.sumOf { it.usedMinutesThisWeek } }
 
     // Обновляем монеты при возврате на экран
     LaunchedEffect(Unit) {
@@ -93,13 +99,13 @@ fun HomeScreen(
                 Text(
                     text = "$greeting,",
                     fontSize = 15.sp,
-                    color = Color.White.copy(alpha = 0.6f)
+                    color = colors.textSecondary
                 )
                 Text(
                     text = userName,
                     fontSize = 26.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    color = colors.textPrimary
                 )
             }
 
@@ -127,7 +133,16 @@ fun HomeScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // ── Панель 3: Математический справочник ───────────────────────────────
+        // ── Панель 3: Статистика использования ────────────────────────────────
+        UsageStatsCard(
+            totalMinutes = totalUsageMinutes,
+            appsCount = appsWithTimers.size,
+            onNavigate = onNavigateToStats
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // ── Панель 4: Математический справочник ───────────────────────────────
         MathReferenceCard()
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -145,7 +160,7 @@ fun HomeScreen(
         Dialog(onDismissRequest = { showRetestConfirm = false }) {
             Surface(
                 shape = RoundedCornerShape(24.dp),
-                color = Color(0xFF1F1F2C),
+                color = colors.surface,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
@@ -156,13 +171,13 @@ fun HomeScreen(
                         text = "Перепройти тест?",
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = colors.textPrimary
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
                         text = "Результаты текущего теста будут заменены новыми. Настройки чат-бота обновятся.",
                         fontSize = 14.sp,
-                        color = Color.White.copy(alpha = 0.65f),
+                        color = colors.textSecondary,
                         textAlign = TextAlign.Center
                     )
                     Spacer(modifier = Modifier.height(24.dp))
@@ -174,14 +189,14 @@ fun HomeScreen(
                             onClick = { showRetestConfirm = false },
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("Отмена", color = Color.White.copy(alpha = 0.55f))
+                            Text("Отмена", color = colors.textSecondary)
                         }
                         Button(
                             onClick = {
                                 showRetestConfirm = false
                                 onShowTestDialog()
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252)),
+                            colors = ButtonDefaults.buttonColors(containerColor = colors.primary),
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.weight(1f)
                         ) {
@@ -198,10 +213,11 @@ fun HomeScreen(
 
 @Composable
 fun CoinBalanceChip(coins: Int) {
+    val colors = AppTheme.colors
     Row(
         modifier = Modifier
             .clip(RoundedCornerShape(20.dp))
-            .background(Color(0xFF1A1A24))
+            .background(colors.surface)
             .border(1.dp, Color(0xFFFFD700).copy(alpha = 0.4f), RoundedCornerShape(20.dp))
             .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -217,6 +233,106 @@ fun CoinBalanceChip(coins: Int) {
     }
 }
 
+// ── Карточка статистики использования ─────────────────────────────────────────
+
+@Composable
+fun UsageStatsCard(
+    totalMinutes: Int,
+    appsCount: Int,
+    onNavigate: () -> Unit
+) {
+    val colors = AppTheme.colors
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .clickable { onNavigate() },
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.horizontalGradient(
+                        if (colors.isDark) {
+                            listOf(Color(0xFF182238), Color(0xFF161E30))
+                        } else {
+                            listOf(Color(0xFFEDF4FF), Color(0xFFE5EFFE))
+                        }
+                    )
+                )
+                .border(
+                    1.dp,
+                    Color(0xFF2979FF).copy(alpha = 0.45f),
+                    RoundedCornerShape(20.dp)
+                )
+                .padding(20.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Иконка
+                Box(
+                    modifier = Modifier
+                        .size(52.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color(0xFF2979FF).copy(alpha = 0.18f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "📊",
+                        fontSize = 24.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(14.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Статистика использования",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = colors.textPrimary
+                    )
+
+                    Spacer(modifier = Modifier.height(3.dp))
+
+                    Text(
+                        text = if (totalMinutes > 0) {
+                            "Использовано за день: ${formatMinutes(totalMinutes)}"
+                        } else {
+                            "Нет активности за сегодня"
+                        },
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF448AFF)
+                    )
+
+                    Spacer(modifier = Modifier.height(2.dp))
+
+                    Text(
+                        text = if (appsCount > 0) "$appsCount активных таймеров • Подробнее" else "Детализация использования",
+                        fontSize = 11.sp,
+                        color = colors.textSecondary
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                // Стрелка перехода
+                Text(
+                    text = "›",
+                    fontSize = 26.sp,
+                    color = colors.textTertiary,
+                    fontWeight = FontWeight.Light
+                )
+            }
+        }
+    }
+}
+
 // ── Карточка теста личности ───────────────────────────────────────────────────
 
 @Composable
@@ -225,6 +341,7 @@ fun PersonalityTestCard(
     onStartTest: () -> Unit,
     onRetest: () -> Unit
 ) {
+    val colors = AppTheme.colors
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
@@ -235,13 +352,17 @@ fun PersonalityTestCard(
                 .fillMaxWidth()
                 .background(
                     Brush.horizontalGradient(
-                        listOf(Color(0xFF1F1A2E), Color(0xFF1A1A30))
+                        if (colors.isDark) {
+                            listOf(Color(0xFF1F1A2E), Color(0xFF1A1A30))
+                        } else {
+                            listOf(Color(0xFFF3EDFA), Color(0xFFEDE8F8))
+                        }
                     )
                 )
                 .border(
                     1.dp,
                     if (isTestPassed) Color(0xFF7C4DFF).copy(alpha = 0.5f)
-                    else Color(0xFFFF5252).copy(alpha = 0.4f),
+                    else colors.primary.copy(alpha = 0.4f),
                     RoundedCornerShape(20.dp)
                 )
                 .padding(20.dp)
@@ -257,7 +378,7 @@ fun PersonalityTestCard(
                         .clip(RoundedCornerShape(14.dp))
                         .background(
                             if (isTestPassed) Color(0xFF7C4DFF).copy(alpha = 0.2f)
-                            else Color(0xFFFF5252).copy(alpha = 0.15f)
+                            else colors.primarySubtle
                         ),
                     contentAlignment = Alignment.Center
                 ) {
@@ -274,7 +395,7 @@ fun PersonalityTestCard(
                         text = "Тест личности",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = colors.textPrimary
                     )
                     Spacer(modifier = Modifier.height(3.dp))
                     Text(
@@ -283,7 +404,7 @@ fun PersonalityTestCard(
                         else
                             "Пройдите для персонализации ИИ",
                         fontSize = 12.sp,
-                        color = Color.White.copy(alpha = 0.55f)
+                        color = colors.textSecondary
                     )
                 }
 
@@ -294,8 +415,8 @@ fun PersonalityTestCard(
                     modifier = Modifier
                         .clip(RoundedCornerShape(12.dp))
                         .background(
-                            if (isTestPassed) Color(0xFF252535)
-                            else Color(0xFFFF5252)
+                            if (isTestPassed) colors.surfaceElevated
+                            else colors.primary
                         )
                         .clickable { if (isTestPassed) onRetest() else onStartTest() }
                         .padding(horizontal = 14.dp, vertical = 10.dp)
@@ -304,7 +425,7 @@ fun PersonalityTestCard(
                         text = if (isTestPassed) "Перепройти" else "Начать",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color.White
+                        color = if (isTestPassed) colors.textPrimary else Color.White
                     )
                 }
             }
@@ -320,6 +441,7 @@ fun DailyTaskCard(
     streak: Int,
     onNavigate: () -> Unit
 ) {
+    val colors = AppTheme.colors
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -332,7 +454,11 @@ fun DailyTaskCard(
                 .fillMaxWidth()
                 .background(
                     Brush.horizontalGradient(
-                        listOf(Color(0xFF1A2E20), Color(0xFF1A2428))
+                        if (colors.isDark) {
+                            listOf(Color(0xFF1A2E20), Color(0xFF1A2428))
+                        } else {
+                            listOf(Color(0xFFEAF5EC), Color(0xFFE8F2F2))
+                        }
                     )
                 )
                 .border(
@@ -376,7 +502,7 @@ fun DailyTaskCard(
                             text = "Задача дня",
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = colors.textPrimary
                         )
                         if (!isSolvedToday) {
                             // Бейдж "+ монетка"
@@ -440,7 +566,7 @@ fun DailyTaskCard(
                         else
                             "Реши задачу и заработай монеты",
                         fontSize = 12.sp,
-                        color = Color.White.copy(alpha = 0.55f)
+                        color = colors.textSecondary
                     )
                 }
 
@@ -450,7 +576,7 @@ fun DailyTaskCard(
                 Text(
                     text = "›",
                     fontSize = 26.sp,
-                    color = Color.White.copy(alpha = 0.35f),
+                    color = colors.textTertiary,
                     fontWeight = FontWeight.Light
                 )
             }
@@ -462,12 +588,13 @@ fun DailyTaskCard(
 
 @Composable
 fun InfoBanner(text: String) {
+    val colors = AppTheme.colors
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .background(Color(0xFF1A1A24))
-            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(14.dp))
+            .background(colors.surface)
+            .border(1.dp, colors.surfaceBorder, RoundedCornerShape(14.dp))
             .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -476,7 +603,7 @@ fun InfoBanner(text: String) {
         Text(
             text = text,
             fontSize = 13.sp,
-            color = Color.White.copy(alpha = 0.55f),
+            color = colors.textSecondary,
             lineHeight = 18.sp
         )
     }

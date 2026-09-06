@@ -13,12 +13,18 @@ import android.provider.Settings
 import android.text.TextUtils
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.*
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.haze
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -43,15 +49,21 @@ import com.example.project1.ui.screens.chat.ChatScreen
 import com.example.project1.ui.screens.daily.DailyTaskScreen
 import com.example.project1.ui.screens.home.HomeScreen
 import com.example.project1.ui.screens.personality.AiPersonalityTestDialog
+import com.example.project1.ui.screens.settings.SettingsScreen
 import com.example.project1.ui.screens.stats.StatsScreen
 import com.example.project1.ui.screens.timers.AppSelectionDialog
 import com.example.project1.ui.screens.timers.PermissionRequestScreen
 import com.example.project1.ui.screens.timers.TimerConfigDialog
 import com.example.project1.ui.screens.timers.TimersScreen
+import com.example.project1.ui.theme.AppTheme
 import com.example.project1.ui.theme.Project1Theme
+import com.example.project1.ui.theme.ThemeManager
 import com.example.project1.util.IconCache
 import com.example.project1.util.getAppUsageMinutesThisWeek
 import com.example.project1.util.shortsLogoDrawable
+import com.example.project1.util.reelsLogoDrawable
+import com.example.project1.util.vkClipsLogoDrawable
+import com.example.project1.util.twitchClipsLogoDrawable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -63,6 +75,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         AppTimerStore.init(this)
         AiTestManager.init(this)
+        ThemeManager.init(this)
         enableEdgeToEdge()
 
         setContent {
@@ -175,7 +188,9 @@ fun MainScreen() {
     val coroutineScope = rememberCoroutineScope()
 
     val pagerState = rememberPagerState(initialPage = 0, pageCount = { 4 })
+    val hazeState = remember { HazeState() }
     var showDailyTask by remember { mutableStateOf(false) }
+    var showStatsDetails by remember { mutableStateOf(false) }
 
     var installedApps by remember { mutableStateOf<List<AppInfo>>(emptyList()) }
     var selectedAppForTimer by remember { mutableStateOf<AppInfo?>(null) }
@@ -196,29 +211,34 @@ fun MainScreen() {
         }
 
         val currentPackage = context.packageName
-        val youtubeIconDrawable = shortsLogoDrawable(context)
-
-        val shortsTimerData = AppTimerStore.limits["com.google.android.youtube.shorts"]
-        val shortsLimit = shortsTimerData?.limitMinutes ?: 0
-        val shortsAddedTimestamp = shortsTimerData?.addedTimestamp ?: 0L
-        val shortsUsed = getAppUsageMinutesThisWeek(context, "com.google.android.youtube.shorts", shortsAddedTimestamp)
-        val isShortsFrozen = shortsLimit > 0 && shortsUsed >= shortsLimit
-
-        val shortsDisplayIcon = IconCache.getIcon(
-            context,
+        val virtualShortPackages = setOf(
             "com.google.android.youtube.shorts",
-            youtubeIconDrawable,
-            isShortsFrozen
+            "com.instagram.android.reels",
+            "com.vkontakte.android.clips",
+            "tv.twitch.android.app.clips"
         )
 
-        val shortsAppInfo = AppInfo(
-            name = "YouTube Shorts",
-            packageName = "com.google.android.youtube.shorts",
-            icon = shortsDisplayIcon,
-            timeLimitMinutes = shortsLimit,
-            usedMinutesThisWeek = shortsUsed,
-            addedTimestamp = shortsAddedTimestamp
-        )
+        fun createShortAppInfo(name: String, pkg: String, rawDrawable: android.graphics.drawable.Drawable): AppInfo {
+            val timerData = AppTimerStore.limits[pkg]
+            val limit = timerData?.limitMinutes ?: 0
+            val addedTimestamp = timerData?.addedTimestamp ?: 0L
+            val used = getAppUsageMinutesThisWeek(context, pkg, addedTimestamp)
+            val isFrozen = limit > 0 && used >= limit
+            val displayIcon = IconCache.getIcon(context, pkg, rawDrawable, isFrozen)
+            return AppInfo(
+                name = name,
+                packageName = pkg,
+                icon = displayIcon,
+                timeLimitMinutes = limit,
+                usedMinutesThisWeek = used,
+                addedTimestamp = addedTimestamp
+            )
+        }
+
+        val shortsAppInfo = createShortAppInfo("YouTube Shorts", "com.google.android.youtube.shorts", shortsLogoDrawable(context))
+        val reelsAppInfo = createShortAppInfo("Instagram Reels", "com.instagram.android.reels", reelsLogoDrawable(context))
+        val vkClipsAppInfo = createShortAppInfo("VK Клипы", "com.vkontakte.android.clips", vkClipsLogoDrawable(context))
+        val twitchClipsAppInfo = createShortAppInfo("Twitch Клипы", "tv.twitch.android.app.clips", twitchClipsLogoDrawable(context))
 
         val regularApps = resolvedInfos
             .map { resolveInfo ->
@@ -241,16 +261,18 @@ fun MainScreen() {
                     addedTimestamp = addedTimestamp
                 )
             }
-            .filter { it.packageName != currentPackage && it.packageName != "com.google.android.youtube.shorts" }
+            .filter { it.packageName != currentPackage && !virtualShortPackages.contains(it.packageName) }
             .distinctBy { it.packageName }
             .sortedBy { it.name }
 
-        val newList = listOf(shortsAppInfo) + regularApps
+        // Точный порядок: Шортсы выше всех, рилсы ниже, вк ниже и потом твич
+        val newList = listOf(shortsAppInfo, reelsAppInfo, vkClipsAppInfo, twitchClipsAppInfo) + regularApps
 
         withContext(Dispatchers.Main) {
             installedApps = newList
         }
     }
+
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -293,9 +315,13 @@ fun MainScreen() {
         // Снимаем флаг исчерпания — иначе сервис продолжит мгновенно блокировать
         AppTimerStore.clearExhausted(app.packageName)
         IconCache.invalidate(app.packageName)
-        if (app.packageName == "com.google.android.youtube.shorts") {
+        if (app.packageName == "com.google.android.youtube.shorts" ||
+            app.packageName == "com.instagram.android.reels" ||
+            app.packageName == "com.vkontakte.android.clips" ||
+            app.packageName == "tv.twitch.android.app.clips") {
             AppBlockAccessibilityService.onUnlocked()
         }
+
         coroutineScope.launch { refreshApps() }
         Toast.makeText(
             context,
@@ -305,27 +331,55 @@ fun MainScreen() {
     }
 
     var isChatOpen by remember { mutableStateOf(false) }
+    var isBottomBarStyleOpen by remember { mutableStateOf(false) }
     var showAiTestDialogFromHome by remember { mutableStateOf(false) }
     var pendingChatSession by remember { mutableStateOf<ChatSession?>(null) }
 
+    val pageHistory = remember { mutableStateListOf(0) }
+
+    LaunchedEffect(pagerState.currentPage) {
+        val page = pagerState.currentPage
+        if (pageHistory.isEmpty() || pageHistory.last() != page) {
+            pageHistory.add(page)
+        }
+    }
+
+    BackHandler(enabled = showStatsDetails || (pagerState.currentPage != 0 && !isChatOpen && !showDailyTask && !isBottomBarStyleOpen)) {
+        if (showStatsDetails) {
+            showStatsDetails = false
+            return@BackHandler
+        }
+        while (pageHistory.isNotEmpty() && pageHistory.last() == pagerState.currentPage) {
+            pageHistory.removeAt(pageHistory.lastIndex)
+        }
+        val targetPage = pageHistory.removeLastOrNull() ?: 0
+        coroutineScope.launch {
+            pagerState.animateScrollToPage(targetPage)
+        }
+    }
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        containerColor = Color(0xFF0F0F14)
+        containerColor = AppTheme.colors.background
     ) { innerPadding ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            if (!showDailyTask) HorizontalPager(
+            HorizontalPager(
                 state = pagerState,
-                modifier = Modifier.fillMaxSize(),
-                userScrollEnabled = !isChatOpen
+                modifier = Modifier
+                    .fillMaxSize()
+                    .haze(hazeState),
+                userScrollEnabled = !isChatOpen && !showDailyTask && !showStatsDetails && !isBottomBarStyleOpen
             ) { page ->
                 when (page) {
                     0 -> HomeScreen(
                         onNavigateToDailyTask = { showDailyTask = true },
                         onShowTestDialog = { showAiTestDialogFromHome = true },
+                        onNavigateToStats = { showStatsDetails = true },
+                        appsWithTimers = installedApps.filter { it.timeLimitMinutes > 0 },
                         onNavigateToChat = { title: String, firstMsg: String, taskLatex: String ->
                             val newSession = ChatSession(
                                 id = System.currentTimeMillis().toString(),
@@ -373,8 +427,8 @@ fun MainScreen() {
                             }
                         }
                     )
-                    2 -> StatsScreen(
-                        appsWithTimers = installedApps.filter { it.timeLimitMinutes > 0 }
+                    2 -> SettingsScreen(
+                        onBottomBarStyleOpenChanged = { isBottomBarStyleOpen = it }
                     )
                     3 -> ChatScreen(
                         onChatOpenChanged = { isChatOpen = it },
@@ -384,8 +438,18 @@ fun MainScreen() {
                 }
             }
 
-            // DailyTaskScreen — поверх всего, не в пейджере
-            if (showDailyTask) {
+            // DailyTaskScreen — поверх всего, плавно въезжает справа
+            AnimatedVisibility(
+                visible = showDailyTask,
+                enter = slideInHorizontally(
+                    initialOffsetX = { it },
+                    animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing)
+                ) + fadeIn(animationSpec = tween(200)),
+                exit = slideOutHorizontally(
+                    targetOffsetX = { it },
+                    animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing)
+                ) + fadeOut(animationSpec = tween(200))
+            ) {
                 DailyTaskScreen(
                     onNavigateToChat = { title: String, firstMsg: String, taskLatex: String ->
                         // Если firstMsg — готовая подсказка (отображается как сообщение бота),
@@ -414,17 +478,46 @@ fun MainScreen() {
                 )
             }
 
-            if (!isChatOpen && !showDailyTask) {
+            // StatsScreen — подробности статистики при клике с главной
+            AnimatedVisibility(
+                visible = showStatsDetails,
+                enter = slideInHorizontally(
+                    initialOffsetX = { it },
+                    animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing)
+                ) + fadeIn(animationSpec = tween(200)),
+                exit = slideOutHorizontally(
+                    targetOffsetX = { it },
+                    animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing)
+                ) + fadeOut(animationSpec = tween(200))
+            ) {
+                StatsScreen(
+                    appsWithTimers = installedApps.filter { it.timeLimitMinutes > 0 },
+                    onBack = { showStatsDetails = false }
+                )
+            }
+
+            AnimatedVisibility(
+                visible = !isChatOpen && !showDailyTask && !showStatsDetails && !isBottomBarStyleOpen,
+                enter = slideInVertically(
+                    initialOffsetY = { it },
+                    animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing)
+                ) + fadeIn(animationSpec = tween(200)),
+                exit = slideOutVertically(
+                    targetOffsetY = { it },
+                    animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)
+                ) + fadeOut(animationSpec = tween(150)),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 16.dp)
+            ) {
                 GlassBottomNavigationBar(
                     pagerState = pagerState,
+                    hazeState = hazeState,
                     onTabSelected = { tabIndex ->
                         coroutineScope.launch {
                             pagerState.animateScrollToPage(tabIndex)
                         }
-                    },
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 16.dp)
+                    }
                 )
             }
 

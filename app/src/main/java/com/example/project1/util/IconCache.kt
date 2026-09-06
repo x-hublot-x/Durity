@@ -57,6 +57,21 @@ fun shortsLogoDrawable(context: Context): Drawable {
         ?: ContextCompat.getDrawable(context, android.R.drawable.sym_def_app_icon)!!
 }
 
+fun reelsLogoDrawable(context: Context): Drawable {
+    return ContextCompat.getDrawable(context, R.drawable.ic_instagram_reels)
+        ?: ContextCompat.getDrawable(context, android.R.drawable.sym_def_app_icon)!!
+}
+
+fun vkClipsLogoDrawable(context: Context): Drawable {
+    return ContextCompat.getDrawable(context, R.drawable.ic_vk_clips)
+        ?: ContextCompat.getDrawable(context, android.R.drawable.sym_def_app_icon)!!
+}
+
+fun twitchClipsLogoDrawable(context: Context): Drawable {
+    return ContextCompat.getDrawable(context, R.drawable.ic_twitch_clips)
+        ?: ContextCompat.getDrawable(context, android.R.drawable.sym_def_app_icon)!!
+}
+
 fun getHighResAppIcon(context: Context, rawIcon: Drawable): Bitmap {
     val size = 128
     val bitmap = createBitmap(size, size)

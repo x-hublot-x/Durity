@@ -4,9 +4,11 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.shape.CircleShape
@@ -18,7 +20,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import dev.chrisbanes.haze.HazeDefaults
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeChild
+import com.example.project1.ui.theme.AppTheme
+import com.example.project1.ui.theme.BottomBarStyle
+import com.example.project1.ui.theme.ThemeManager
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
@@ -39,81 +51,179 @@ import androidx.compose.ui.unit.sp
 fun GlassBottomNavigationBar(
     pagerState: PagerState,
     onTabSelected: (Int) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    hazeState: HazeState? = null
 ) {
-    val density = LocalDensity.current
-    var totalWidthPx by remember { mutableStateOf(0) }
-    val itemWidthPx = if (totalWidthPx > 0) totalWidthPx / 4f else 0f   // 4 вкладки
+    val colors = AppTheme.colors
+    val currentStyle = ThemeManager.currentBottomBarStyle
+    val isThemed = currentStyle != BottomBarStyle.DEFAULT
+
     val pillPosition = pagerState.currentPage + pagerState.currentPageOffsetFraction
+    val itemWidthDp = 82.dp
+    val padDp = 3.dp
+    val offDp = itemWidthDp * pillPosition + padDp
+    val wDp = itemWidthDp - padDp * 2
 
-    // Внешний Box только для позиционирования — без фона
+    // Внешний Box для позиционирования
     Box(modifier = modifier) {
-        // ── Слой 1: размытие фона под панелью ─────────────────────────────
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .clip(CircleShape)
-                    .graphicsLayer {
-                        renderEffect = android.graphics.RenderEffect
-                            .createBlurEffect(80f, 80f, android.graphics.Shader.TileMode.CLAMP)
-                            .asComposeRenderEffect()
-                    }
-                    .background(Color.Transparent)
-            )
-        }
-
-        // ── Слой 2: сама панель поверх ────────────────────────────────────
+        // Контейнер панели: капсула 340dp x 64dp
         Box(
             modifier = Modifier
+                .width(340.dp)
                 .height(64.dp)
                 .clip(CircleShape)
-                .background(Color(0xCC1A1A24))
-                .border(1.dp, Color.White.copy(alpha = 0.15f), CircleShape)
-                .padding(horizontal = 6.dp, vertical = 6.dp)
-                .onSizeChanged { totalWidthPx = it.width },
-            contentAlignment = Alignment.CenterStart
         ) {
-            // Скользящая пилюля
-            if (totalWidthPx > 0) {
-                val padPx   = with(density) { 4.dp.toPx() }
-                val offPx   = itemWidthPx * pillPosition + padPx
-                val wPx     = itemWidthPx - padPx * 2f
+            // ── Слой 1: Фоновое наполнение (на ВСЮ площадь плашки 340x64 dp) ──
+            if (!isThemed) {
+                // Стандартный стиль: матовое стекло с эффектом размытия и водным градиентом
                 Box(
                     modifier = Modifier
-                        .offset { IntOffset(offPx.toInt(), 0) }
-                        .width(with(density) { wPx.toDp() })
-                        .fillMaxHeight()
-                        .clip(CircleShape)
+                        .fillMaxSize()
+                        .then(
+                            if (hazeState != null) {
+                                Modifier.hazeChild(
+                                    state = hazeState,
+                                    shape = CircleShape,
+                                    style = HazeDefaults.style(
+                                        backgroundColor = Color(0x18141828),
+                                        tint = Color(0x30141828),
+                                        blurRadius = 32.dp,
+                                        noiseFactor = 0.04f
+                                    )
+                                )
+                            } else Modifier
+                        )
                         .background(
-                            brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
-                                listOf(Color(0x88FF5252), Color(0x88E53935))
+                            brush = Brush.verticalGradient(
+                                listOf(
+                                    Color(0x4D283248),
+                                    Color(0x30121526)
+                                )
                             )
                         )
                 )
+            } else if (currentStyle.drawableRes != null) {
+                // Тематический стиль в 1080p: заполняет 100% пространства плашки без черных полей
+                Image(
+                    painter = painterResource(id = currentStyle.drawableRes),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+                // Если стиль анимированный — накладываем живую анимацию эффектов
+                if (currentStyle.isAnimated) {
+                    AnimatedBottomBarEffect(
+                        style = currentStyle,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+                // Затемнение заднего фона на 40% для глубокого контраста и четкости текста
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.40f))
+                )
             }
 
-            // Вкладки — фиксированная ширина каждого таба, панель сжата по содержимому
-            Row(
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
+            // ── Слой 2: Внешний спекулярный световой контур ровно по внешнему краю плашки ──
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .border(
+                        width = 1.2.dp,
+                        brush = Brush.verticalGradient(
+                            listOf(
+                                Color.White.copy(alpha = if (isThemed) 0.28f else 0.28f),
+                                Color.White.copy(alpha = 0.06f)
+                            )
+                        ),
+                        shape = CircleShape
+                    )
+            )
+
+            // ── Слой 3: Скользящая пилюля и кнопки табов (ширина 328 dp, отступ по 6 dp с боков) ──
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 6.dp, vertical = 6.dp),
+                contentAlignment = Alignment.CenterStart
             ) {
-                NavPillItem(
-                    label = "Главная", index = 0, pillPosition = pillPosition,
-                    onClick = { onTabSelected(0) }, modifier = Modifier.width(82.dp)
-                ) { sel -> HomeIcon(isSelected = sel) }
-                NavPillItem(
-                    label = "Таймеры", index = 1, pillPosition = pillPosition,
-                    onClick = { onTabSelected(1) }, modifier = Modifier.width(82.dp)
-                ) { sel -> TimerIcon(isSelected = sel) }
-                NavPillItem(
-                    label = "Статистика", index = 2, pillPosition = pillPosition,
-                    onClick = { onTabSelected(2) }, modifier = Modifier.width(82.dp)
-                ) { sel -> StatsIcon(isSelected = sel) }
-                NavPillItem(
-                    label = "Чат бот", index = 3, pillPosition = pillPosition,
-                    onClick = { onTabSelected(3) }, modifier = Modifier.width(82.dp)
-                ) { sel -> ChatIcon(isSelected = sel) }
+                // Скользящая пилюля активной вкладки
+                Box(
+                    modifier = Modifier
+                        .offset(x = offDp)
+                        .width(wDp)
+                        .fillMaxHeight()
+                        .clip(CircleShape)
+                ) {
+                    if (!isThemed) {
+                        // Обычный стиль: акцентный градиент темы
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    brush = Brush.horizontalGradient(
+                                        listOf(
+                                            colors.primary.copy(alpha = 0.45f),
+                                            colors.secondary.copy(alpha = 0.45f)
+                                        )
+                                    )
+                                )
+                        )
+                    } else {
+                        // Тематический стиль:
+                        // Жидкая стеклянная капля со сдержанным мягким свечением (-20% яркости)
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color.White.copy(alpha = 0.11f))
+                                .background(
+                                    brush = Brush.verticalGradient(
+                                        listOf(
+                                            Color.White.copy(alpha = 0.22f),
+                                            Color.White.copy(alpha = 0.03f),
+                                            Color.Transparent,
+                                            Color.White.copy(alpha = 0.08f)
+                                        )
+                                    )
+                                )
+                                .border(
+                                    width = 1.dp,
+                                    brush = Brush.verticalGradient(
+                                        listOf(
+                                            Color.White.copy(alpha = 0.36f),
+                                            Color.White.copy(alpha = 0.10f)
+                                        )
+                                    ),
+                                    shape = CircleShape
+                                )
+                        )
+                    }
+                }
+
+                // Вкладки — 4 таба ровно по 82 dp
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    NavPillItem(
+                        label = "Главная", index = 0, pillPosition = pillPosition, isThemed = isThemed,
+                        onClick = { onTabSelected(0) }, modifier = Modifier.width(itemWidthDp)
+                    ) { sel, col -> HomeIcon(isSelected = sel, activeColor = col) }
+                    NavPillItem(
+                        label = "Таймеры", index = 1, pillPosition = pillPosition, isThemed = isThemed,
+                        onClick = { onTabSelected(1) }, modifier = Modifier.width(itemWidthDp)
+                    ) { sel, col -> TimerIcon(isSelected = sel, activeColor = col) }
+                    NavPillItem(
+                        label = "Настройки", index = 2, pillPosition = pillPosition, isThemed = isThemed,
+                        onClick = { onTabSelected(2) }, modifier = Modifier.width(itemWidthDp)
+                    ) { sel, col -> SettingsIcon(isSelected = sel, activeColor = col) }
+                    NavPillItem(
+                        label = "Чат бот", index = 3, pillPosition = pillPosition, isThemed = isThemed,
+                        onClick = { onTabSelected(3) }, modifier = Modifier.width(itemWidthDp)
+                    ) { sel, col -> ChatIcon(isSelected = sel, activeColor = col) }
+                }
             }
         }
     }
@@ -124,13 +234,17 @@ private fun NavPillItem(
     label: String,
     index: Int,
     pillPosition: Float,
+    isThemed: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    icon: @Composable (Boolean) -> Unit
+    icon: @Composable (Boolean, Color) -> Unit
 ) {
     val closeness = (1f - kotlin.math.abs(pillPosition - index)).coerceIn(0f, 1f)
     val isActive  = closeness > 0.5f
-    val textColor = lerp(Color.White.copy(alpha = 0.55f), Color.White, closeness)
+    val activeColor = if (isThemed) Color.White else AppTheme.accent
+    val inactiveColor = if (isThemed) Color.White.copy(alpha = 0.65f) else Color.White.copy(alpha = 0.55f)
+    val textColor = lerp(inactiveColor, activeColor, closeness)
+    val contentScale = if (isThemed) (1.0f + 0.08f * closeness) else 1.0f
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -138,9 +252,16 @@ private fun NavPillItem(
         modifier = modifier
             .fillMaxHeight()
             .clip(CircleShape)
-            .clickable { onClick() }
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) { onClick() }
+            .graphicsLayer {
+                scaleX = contentScale
+                scaleY = contentScale
+            }
     ) {
-        icon(isActive)
+        icon(isActive, activeColor)
         Spacer(modifier = Modifier.height(3.dp))
         Text(
             text = label,
@@ -158,8 +279,10 @@ fun GlassNavItem(
     onClick: () -> Unit,
     iconContent: @Composable (Boolean) -> Unit
 ) {
+    val colors = AppTheme.colors
+    val inactiveColor = if (colors.isDark) Color.White.copy(alpha = 0.6f) else Color(0xFF6B7280)
     val textColor by animateColorAsState(
-        targetValue = if (isSelected) Color(0xFFFF5252) else Color.White.copy(alpha = 0.6f),
+        targetValue = if (isSelected) colors.primary else inactiveColor,
         animationSpec = tween(durationMillis = 200),
         label = "textColor"
     )
@@ -183,9 +306,8 @@ fun GlassNavItem(
 }
 
 @Composable
-fun HomeIcon(isSelected: Boolean) {
-    val activeColor = Color(0xFFFF5252)
-    val inactiveColor = Color.White.copy(alpha = 0.8f)
+fun HomeIcon(isSelected: Boolean, activeColor: Color = AppTheme.accent) {
+    val inactiveColor = if (AppTheme.colors.isDark) Color.White.copy(alpha = 0.8f) else Color(0xFF6B7280)
 
     Canvas(modifier = Modifier.size(20.dp)) {
         val w = size.width
@@ -238,9 +360,8 @@ fun HomeIcon(isSelected: Boolean) {
 }
 
 @Composable
-fun TimerIcon(isSelected: Boolean) {
-    val activeColor = Color(0xFFFF5252)
-    val inactiveColor = Color.White.copy(alpha = 0.8f)
+fun TimerIcon(isSelected: Boolean, activeColor: Color = AppTheme.accent) {
+    val inactiveColor = if (AppTheme.colors.isDark) Color.White.copy(alpha = 0.8f) else Color(0xFF6B7280)
 
     Canvas(modifier = Modifier.size(20.dp)) {
         val centerPoint = Offset(size.width / 2f, size.height / 2f)
@@ -248,15 +369,16 @@ fun TimerIcon(isSelected: Boolean) {
 
         if (isSelected) {
             drawCircle(color = activeColor, radius = radius, center = centerPoint, style = Fill)
+            val handsColor = if (activeColor == Color.White) Color(0xFF101424) else Color.White
             drawLine(
-                color = Color.White,
+                color = handsColor,
                 start = centerPoint,
                 end = Offset(centerPoint.x, centerPoint.y - radius * 0.5f),
                 strokeWidth = 2.dp.toPx(),
                 cap = StrokeCap.Round
             )
             drawLine(
-                color = Color.White,
+                color = handsColor,
                 start = centerPoint,
                 end = Offset(centerPoint.x + radius * 0.4f, centerPoint.y),
                 strokeWidth = 2.dp.toPx(),
@@ -283,9 +405,53 @@ fun TimerIcon(isSelected: Boolean) {
 }
 
 @Composable
-fun StatsIcon(isSelected: Boolean) {
-    val activeColor = Color(0xFFFF5252)
-    val inactiveColor = Color.White.copy(alpha = 0.8f)
+fun SettingsIcon(isSelected: Boolean, activeColor: Color = AppTheme.accent) {
+    val inactiveColor = if (AppTheme.colors.isDark) Color.White.copy(alpha = 0.8f) else Color(0xFF6B7280)
+    val color = if (isSelected) activeColor else inactiveColor
+    val holeBg = if (activeColor == Color.White) Color(0xFF101424) else Color(0xFF1E2232)
+
+    Canvas(modifier = Modifier.size(20.dp)) {
+        val center = Offset(size.width / 2f, size.height / 2f)
+        val rOut = size.minDimension * 0.42f
+        val rIn = size.minDimension * 0.32f
+        val rHole = size.minDimension * 0.15f
+        val teeth = 6
+
+        val gearPath = Path()
+        for (i in 0 until teeth) {
+            val baseAngle = (i * 360f / teeth) * (Math.PI / 180.0).toFloat()
+            val a1 = baseAngle - 0.22f
+            val a2 = baseAngle + 0.22f
+
+            val p1 = Offset(center.x + rIn * kotlin.math.cos(a1 - 0.12f), center.y + rIn * kotlin.math.sin(a1 - 0.12f))
+            val p2 = Offset(center.x + rOut * kotlin.math.cos(a1), center.y + rOut * kotlin.math.sin(a1))
+            val p3 = Offset(center.x + rOut * kotlin.math.cos(a2), center.y + rOut * kotlin.math.sin(a2))
+            val p4 = Offset(center.x + rIn * kotlin.math.cos(a2 + 0.12f), center.y + rIn * kotlin.math.sin(a2 + 0.12f))
+
+            if (i == 0) gearPath.moveTo(p1.x, p1.y) else gearPath.lineTo(p1.x, p1.y)
+            gearPath.lineTo(p2.x, p2.y)
+            gearPath.lineTo(p3.x, p3.y)
+            gearPath.lineTo(p4.x, p4.y)
+        }
+        gearPath.close()
+
+        if (isSelected) {
+            drawPath(path = gearPath, color = color, style = Fill)
+            drawCircle(color = holeBg, radius = rHole, center = center, style = Fill)
+        } else {
+            drawPath(
+                path = gearPath,
+                color = color,
+                style = Stroke(width = 1.8.dp.toPx(), join = StrokeJoin.Round, cap = StrokeCap.Round)
+            )
+            drawCircle(color = color, radius = rHole, center = center, style = Stroke(width = 1.6.dp.toPx()))
+        }
+    }
+}
+
+@Composable
+fun StatsIcon(isSelected: Boolean, activeColor: Color = AppTheme.accent) {
+    val inactiveColor = if (AppTheme.colors.isDark) Color.White.copy(alpha = 0.8f) else Color(0xFF6B7280)
 
     Canvas(modifier = Modifier.size(20.dp)) {
         val w = size.width
@@ -319,9 +485,8 @@ fun StatsIcon(isSelected: Boolean) {
 }
 
 @Composable
-fun ChatIcon(isSelected: Boolean) {
-    val activeColor = Color(0xFFFF5252)
-    val inactiveColor = Color.White.copy(alpha = 0.8f)
+fun ChatIcon(isSelected: Boolean, activeColor: Color = AppTheme.accent) {
+    val inactiveColor = if (AppTheme.colors.isDark) Color.White.copy(alpha = 0.8f) else Color(0xFF6B7280)
 
     Canvas(modifier = Modifier.size(20.dp)) {
         val w = size.width
@@ -347,6 +512,159 @@ fun ChatIcon(isSelected: Boolean) {
             drawPath(path = path, color = color, style = Fill)
         } else {
             drawPath(path = path, color = color, style = Stroke(width = 1.8.dp.toPx()))
+        }
+    }
+}
+
+/**
+ * Полноценный компонент предпросмотра стиля нижней панели (1:1 со всеми элементами навигации)
+ */
+@Composable
+fun BottomBarPreview(
+    style: BottomBarStyle,
+    modifier: Modifier = Modifier,
+    selectedTab: Int = 0
+) {
+    val colors = AppTheme.colors
+    val isThemed = style != BottomBarStyle.DEFAULT
+
+    val itemWidthDp = 82.dp
+    val padDp = 3.dp
+    val offDp = itemWidthDp * selectedTab + padDp
+    val wDp = itemWidthDp - padDp * 2
+
+    Box(
+        modifier = modifier
+            .width(340.dp)
+            .height(64.dp)
+            .clip(CircleShape)
+    ) {
+        // Слой 1: Фоновое наполнение
+        if (!isThemed) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        brush = Brush.verticalGradient(
+                            listOf(Color(0x4D283248), Color(0x30121526))
+                        )
+                    )
+            )
+        } else if (style.drawableRes != null) {
+            Image(
+                painter = painterResource(id = style.drawableRes),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+            if (style.isAnimated) {
+                AnimatedBottomBarEffect(
+                    style = style,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.40f))
+            )
+        }
+
+        // Слой 2: Внешний спекулярный контур
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .border(
+                    width = 1.2.dp,
+                    brush = Brush.verticalGradient(
+                        listOf(
+                            Color.White.copy(alpha = 0.28f),
+                            Color.White.copy(alpha = 0.06f)
+                        )
+                    ),
+                    shape = CircleShape
+                )
+        )
+
+        // Слой 3: Пилюля и кнопки табов
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 6.dp, vertical = 6.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            Box(
+                modifier = Modifier
+                    .offset(x = offDp)
+                    .width(wDp)
+                    .fillMaxHeight()
+                    .clip(CircleShape)
+            ) {
+                if (!isThemed) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                brush = Brush.horizontalGradient(
+                                    listOf(
+                                        colors.primary.copy(alpha = 0.45f),
+                                        colors.secondary.copy(alpha = 0.45f)
+                                    )
+                                )
+                            )
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.White.copy(alpha = 0.11f))
+                            .background(
+                                brush = Brush.verticalGradient(
+                                    listOf(
+                                        Color.White.copy(alpha = 0.22f),
+                                        Color.White.copy(alpha = 0.03f),
+                                        Color.Transparent,
+                                        Color.White.copy(alpha = 0.08f)
+                                    )
+                                )
+                            )
+                            .border(
+                                width = 1.dp,
+                                brush = Brush.verticalGradient(
+                                    listOf(
+                                        Color.White.copy(alpha = 0.36f),
+                                        Color.White.copy(alpha = 0.10f)
+                                    )
+                                ),
+                                shape = CircleShape
+                            )
+                    )
+                }
+            }
+
+            // Табы
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                NavPillItem(
+                    label = "Главная", index = 0, pillPosition = selectedTab.toFloat(), isThemed = isThemed,
+                    onClick = { }, modifier = Modifier.width(itemWidthDp)
+                ) { sel, col -> HomeIcon(isSelected = sel, activeColor = col) }
+                NavPillItem(
+                    label = "Таймеры", index = 1, pillPosition = selectedTab.toFloat(), isThemed = isThemed,
+                    onClick = { }, modifier = Modifier.width(itemWidthDp)
+                ) { sel, col -> TimerIcon(isSelected = sel, activeColor = col) }
+                NavPillItem(
+                    label = "Настройки", index = 2, pillPosition = selectedTab.toFloat(), isThemed = isThemed,
+                    onClick = { }, modifier = Modifier.width(itemWidthDp)
+                ) { sel, col -> SettingsIcon(isSelected = sel, activeColor = col) }
+                NavPillItem(
+                    label = "Чат бот", index = 3, pillPosition = selectedTab.toFloat(), isThemed = isThemed,
+                    onClick = { }, modifier = Modifier.width(itemWidthDp)
+                ) { sel, col -> ChatIcon(isSelected = sel, activeColor = col) }
+            }
         }
     }
 }

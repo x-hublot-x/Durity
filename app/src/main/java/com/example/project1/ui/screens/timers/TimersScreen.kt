@@ -44,6 +44,7 @@ import com.example.project1.ui.components.SamsungAiStarsIcon
 import com.example.project1.ui.components.WheelPicker
 import com.example.project1.ui.screens.captchas.*
 import com.example.project1.ui.screens.personality.AiPersonalityTestDialog
+import com.example.project1.ui.theme.AppTheme
 import com.example.project1.util.formatMinutes
 
 @Composable
@@ -84,7 +85,7 @@ fun PermissionRequestScreen(
         if (!hasUsage) {
             Button(
                 onClick = onRequestUsage,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252)),
+                colors = ButtonDefaults.buttonColors(containerColor = AppTheme.accent),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text("1. Доступ к статистике использования")
@@ -95,7 +96,7 @@ fun PermissionRequestScreen(
         if (!hasOverlay) {
             Button(
                 onClick = onRequestOverlay,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252)),
+                colors = ButtonDefaults.buttonColors(containerColor = AppTheme.accent),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text("2. Оверлей поверх окон")
@@ -106,7 +107,7 @@ fun PermissionRequestScreen(
         if (!hasAccessibility) {
             Button(
                 onClick = onRequestAccessibility,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252)),
+                colors = ButtonDefaults.buttonColors(containerColor = AppTheme.accent),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text("3. Специальные возможности (для блокировки)")
@@ -160,7 +161,7 @@ fun AutoAddDialog(
 
                 Button(
                     onClick = onConfirm,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252)),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppTheme.accent),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -221,7 +222,7 @@ fun TimersScreen(
                 text = "Активные таймеры",
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White,
+                color = AppTheme.colors.textPrimary,
                 modifier = Modifier.padding(vertical = 12.dp)
             )
 
@@ -232,7 +233,7 @@ fun TimersScreen(
                 ) {
                     Text(
                         text = "Нет установленных таймеров",
-                        color = Color.White.copy(alpha = 0.5f),
+                        color = AppTheme.colors.textSecondary,
                         fontSize = 16.sp
                     )
                 }
@@ -264,7 +265,7 @@ fun TimersScreen(
         ) {
             FloatingActionButton(
                 onClick = onAddTimerClick,
-                containerColor = Color(0xFFFF5252),
+                containerColor = AppTheme.accent,
                 contentColor = Color.White,
                 shape = CircleShape,
                 modifier = Modifier.size(56.dp)
@@ -274,8 +275,8 @@ fun TimersScreen(
 
             FloatingActionButton(
                 onClick = { showAutoAddDialog = true },
-                containerColor = Color(0xFF252533),
-                contentColor = Color.White,
+                containerColor = AppTheme.colors.surfaceElevated,
+                contentColor = AppTheme.colors.textPrimary,
                 shape = CircleShape,
                 modifier = Modifier.size(48.dp)
             ) {
@@ -284,12 +285,12 @@ fun TimersScreen(
 
             FloatingActionButton(
                 onClick = { showAiTestDialog = true },
-                containerColor = Color(0xFF252533),
-                contentColor = Color.White,
+                containerColor = AppTheme.colors.surfaceElevated,
+                contentColor = AppTheme.colors.textPrimary,
                 shape = CircleShape,
                 modifier = Modifier.size(48.dp)
             ) {
-                SamsungAiStarsIcon(tint = Color(0xFFFFFFFF))
+                SamsungAiStarsIcon(tint = AppTheme.colors.textPrimary)
             }
         }
 
@@ -393,10 +394,10 @@ fun ActiveTimerCard(
                     rotationZ = if (isEditMode) rotationAngle else 0f
                 }
                 .clip(RoundedCornerShape(16.dp))
-                .background(Color(0xFF1A1A24))
+                .background(AppTheme.colors.surface)
                 .border(
                     1.dp,
-                    if (isFrozen) Color(0xFF80D8FF) else Color(0xFFFF5252).copy(alpha = 0.4f),
+                    if (isFrozen) Color(0xFF80D8FF) else AppTheme.accent.copy(alpha = 0.4f),
                     RoundedCornerShape(16.dp)
                 )
                 .combinedClickable(
@@ -427,7 +428,7 @@ fun ActiveTimerCard(
                 ) {
                     Text(
                         text = app.name,
-                        color = Color.White,
+                        color = AppTheme.colors.textPrimary,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Medium
                     )
@@ -436,7 +437,7 @@ fun ActiveTimerCard(
 
                     Text(
                         text = "Лимит на день: ${formatMinutes(app.timeLimitMinutes)}",
-                        color = Color.White.copy(alpha = 0.6f),
+                        color = AppTheme.colors.textSecondary,
                         fontSize = 12.sp
                     )
 
@@ -450,7 +451,7 @@ fun ActiveTimerCard(
                     } else {
                         Text(
                             text = "За день: ${formatMinutes(app.usedMinutesThisWeek)} / ${formatMinutes(app.timeLimitMinutes)}",
-                            color = Color(0xFFFF5252),
+                            color = AppTheme.accent,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -512,7 +513,7 @@ fun ActiveTimerCard(
                     Icon(
                         imageVector = if (isFrozen) Icons.Default.Lock else Icons.Default.Delete,
                         contentDescription = if (isFrozen) "Разблокировать (+$UNLOCK_BONUS_MINUTES минут)" else "Удалить",
-                        tint = if (isFrozen) Color(0xFF80D8FF) else Color(0xFFFF5252),
+                        tint = if (isFrozen) Color(0xFF80D8FF) else AppTheme.accent,
                         modifier = Modifier.size(16.dp)
                     )
                 }
@@ -671,7 +672,7 @@ fun AppSelectionDialog(
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = Color.White,
                         unfocusedTextColor = Color.White,
-                        focusedBorderColor = Color(0xFFFF5252),
+                        focusedBorderColor = AppTheme.accent,
                         unfocusedBorderColor = Color.White.copy(alpha = 0.2f),
                         focusedContainerColor = Color(0xFF161622),
                         unfocusedContainerColor = Color(0xFF161622)
@@ -843,7 +844,7 @@ fun TimerConfigDialog(
                             val totalMinutes = selectedHour * 60 + selectedMinute
                             onConfirm(totalMinutes)
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252)),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppTheme.accent),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.weight(1f)
                     ) {

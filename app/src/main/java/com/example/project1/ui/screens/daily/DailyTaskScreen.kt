@@ -5,7 +5,7 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.view.WindowManager
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.*
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
@@ -43,6 +43,7 @@ import com.example.project1.data.model.DailyIntegralTask
 import com.example.project1.data.storage.AiTestManager
 import com.example.project1.data.storage.DailyTaskStorage
 import com.example.project1.ui.components.CoinIcon
+import com.example.project1.ui.theme.AppTheme
 import com.example.project1.ui.components.TaskLatexView
 import com.example.project1.ui.screens.home.MathReferenceFullScreen
 import kotlinx.coroutines.delay
@@ -180,7 +181,11 @@ fun DailyTaskScreen(
         MathReferenceFullScreen(onDismiss = { showMathReference = false })
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(AppTheme.colors.background)
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -200,12 +205,12 @@ fun DailyTaskScreen(
                         text = "Задача дня",
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = AppTheme.colors.textPrimary
                     )
                     Text(
                         text = "Обновляется каждый день в 3:00 МСК",
                         fontSize = 12.sp,
-                        color = Color.White.copy(alpha = 0.4f)
+                        color = AppTheme.colors.textSecondary
                     )
                 }
 
@@ -323,7 +328,7 @@ fun DailyTaskScreen(
                         .height(200.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator(color = Color(0xFFFF5252))
+                    CircularProgressIndicator(color = AppTheme.accent)
                 }
             } else {
                 val currentTask = task!!
@@ -331,7 +336,7 @@ fun DailyTaskScreen(
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A24))
+                    colors = CardDefaults.cardColors(containerColor = AppTheme.colors.surface)
                 ) {
                     Column(
                         modifier = Modifier.padding(20.dp),
@@ -345,7 +350,7 @@ fun DailyTaskScreen(
                             Text(
                                 text = currentTask.type.uppercase(),
                                 fontSize = 12.sp,
-                                color = Color(0xFFFF5252),
+                                color = AppTheme.accent,
                                 fontWeight = FontWeight.Bold
                             )
                             // Монетка — награда за задачу
@@ -466,19 +471,19 @@ fun DailyTaskScreen(
                         placeholder = {
                             Text(
                                 text = "Введите ответ...",
-                                color = Color.White.copy(alpha = 0.35f),
+                                color = AppTheme.colors.textSecondary,
                                 fontSize = 14.sp
                             )
                         },
                         shape = RoundedCornerShape(14.dp),
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
-                            focusedBorderColor = Color(0xFFFF5252),
-                            unfocusedBorderColor = Color.White.copy(alpha = 0.25f),
-                            focusedContainerColor = Color(0xFF1A1A24),
-                            unfocusedContainerColor = Color(0xFF1A1A24)
+                            focusedTextColor = AppTheme.colors.textPrimary,
+                            unfocusedTextColor = AppTheme.colors.textPrimary,
+                            focusedBorderColor = AppTheme.accent,
+                            unfocusedBorderColor = AppTheme.colors.surfaceBorder,
+                            focusedContainerColor = AppTheme.colors.surfaceElevated,
+                            unfocusedContainerColor = AppTheme.colors.surfaceElevated
                         ),
                         maxLines = 3,
                         enabled = !isChecking
@@ -518,7 +523,7 @@ fun DailyTaskScreen(
                             }
                         },
                         enabled = answerText.isNotBlank() && !isChecking,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252)),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppTheme.accent),
                         shape = RoundedCornerShape(14.dp),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -622,115 +627,129 @@ fun DailyTaskScreen(
                     }
 
                     // ── Карточка подсказки ───────────────────────────────────
-                    if (showHint && hintText.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .border(1.dp, Color(0xFFFFB300).copy(alpha = 0.4f), RoundedCornerShape(16.dp)),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2410))
-                        ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Text("💡", fontSize = 18.sp)
+                    AnimatedVisibility(
+                        visible = showHint && hintText.isNotEmpty(),
+                        enter = expandVertically(animationSpec = tween(300)) + fadeIn(animationSpec = tween(250)),
+                        exit = shrinkVertically(animationSpec = tween(250)) + fadeOut(animationSpec = tween(200))
+                    ) {
+                        Column {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .border(1.dp, Color(0xFFFFB300).copy(alpha = 0.4f), RoundedCornerShape(16.dp)),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2410))
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Text("💡", fontSize = 18.sp)
+                                        Text(
+                                            text = "Подсказка",
+                                            fontSize = 15.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFFFFB300)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
                                     Text(
-                                        text = "Подсказка",
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFFFFB300)
+                                        text = hintText,
+                                        fontSize = 14.sp,
+                                        color = Color.White.copy(alpha = 0.9f),
+                                        lineHeight = 20.sp
                                     )
-                                }
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = hintText,
-                                    fontSize = 14.sp,
-                                    color = Color.White.copy(alpha = 0.9f),
-                                    lineHeight = 20.sp
-                                )
-                                Spacer(modifier = Modifier.height(12.dp))
-                                OutlinedButton(
-                                    onClick = {
-                                        val title = "Помощь с задачей дня"
-                                        val hintBotMsg = "💡 **Подсказка к задаче**\n\n$hintText\n\n---\nЗадача: ${currentTask.latexStatement}\n\nЗадавай вопросы — помогу разобраться пошагово, без готового ответа."
-                                        onNavigateToChat(title, hintBotMsg, currentTask.latexStatement)
-                                    },
-                                    shape = RoundedCornerShape(12.dp),
-                                    border = androidx.compose.foundation.BorderStroke(
-                                        1.dp, Color.White.copy(alpha = 0.3f)
-                                    ),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text("💬 Обсудить задачу", color = Color.White, fontSize = 14.sp)
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    OutlinedButton(
+                                        onClick = {
+                                            val title = "Помощь с задачей дня"
+                                            val hintBotMsg = "💡 **Подсказка к задаче**\n\n$hintText\n\n---\nЗадача: ${currentTask.latexStatement}\n\nЗадавай вопросы — помогу разобраться пошагово, без готового ответа."
+                                            onNavigateToChat(title, hintBotMsg, currentTask.latexStatement)
+                                        },
+                                        shape = RoundedCornerShape(12.dp),
+                                        border = androidx.compose.foundation.BorderStroke(
+                                            1.dp, Color.White.copy(alpha = 0.3f)
+                                        ),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text("💬 Обсудить задачу", color = Color.White, fontSize = 14.sp)
+                                    }
                                 }
                             }
                         }
                     }
 
                     // ── Результат проверки ───────────────────────────────────
-                    checkResult?.let { result ->
-                        Spacer(modifier = Modifier.height(16.dp))
+                    AnimatedVisibility(
+                        visible = checkResult != null,
+                        enter = expandVertically(animationSpec = tween(300)) + fadeIn(animationSpec = tween(250)),
+                        exit = shrinkVertically(animationSpec = tween(250)) + fadeOut(animationSpec = tween(200))
+                    ) {
+                        checkResult?.let { result ->
+                            Column {
+                                Spacer(modifier = Modifier.height(16.dp))
 
-                        val (bgColor, borderColor, emoji) = when (result.result) {
-                            CheckResult.CORRECT -> Triple(Color(0xFF1A2E1A), Color(0xFF4CAF50), "✅")
-                            CheckResult.CLOSE -> Triple(Color(0xFF2E2A1A), Color(0xFFFFB300), "⚠️")
-                            CheckResult.WRONG -> Triple(Color(0xFF2E1A1A), Color(0xFFFF5252), "❌")
-                        }
+                                val (bgColor, borderColor, emoji) = when (result.result) {
+                                    CheckResult.CORRECT -> Triple(Color(0xFF1A2E1A), Color(0xFF4CAF50), "✅")
+                                    CheckResult.CLOSE -> Triple(Color(0xFF2E2A1A), Color(0xFFFFB300), "⚠️")
+                                    CheckResult.WRONG -> Triple(Color(0xFF2E1A1A), Color(0xFFFF5252), "❌")
+                                }
 
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .border(1.dp, borderColor, RoundedCornerShape(16.dp)),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = bgColor)
-                        ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .border(1.dp, borderColor, RoundedCornerShape(16.dp)),
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = CardDefaults.cardColors(containerColor = bgColor)
                                 ) {
-                                    Text(emoji, fontSize = 18.sp)
-                                    Text(
-                                        text = when (result.result) {
-                                            CheckResult.CORRECT -> "Верно!"
-                                            CheckResult.CLOSE -> "Почти!"
-                                            CheckResult.WRONG -> "Попробуй ещё"
-                                        },
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = borderColor
-                                    )
-                                }
+                                    Column(modifier = Modifier.padding(16.dp)) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Text(emoji, fontSize = 18.sp)
+                                            Text(
+                                                text = when (result.result) {
+                                                    CheckResult.CORRECT -> "Верно!"
+                                                    CheckResult.CLOSE -> "Почти!"
+                                                    CheckResult.WRONG -> "Попробуй ещё"
+                                                },
+                                                fontSize = 15.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = borderColor
+                                            )
+                                        }
 
-                                if (result.comment.isNotBlank()) {
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text(
-                                        text = result.comment,
-                                        fontSize = 14.sp,
-                                        color = Color.White.copy(alpha = 0.85f),
-                                        lineHeight = 20.sp
-                                    )
-                                }
+                                        if (result.comment.isNotBlank()) {
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Text(
+                                                text = result.comment,
+                                                fontSize = 14.sp,
+                                                color = Color.White.copy(alpha = 0.85f),
+                                                lineHeight = 20.sp
+                                            )
+                                        }
 
-                                if (result.result != CheckResult.CORRECT) {
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    OutlinedButton(
-                                        onClick = {
-                                            val uName = AiTestManager.savedName.trim()
-                                                .split(" ").firstOrNull()?.takeIf { it.isNotBlank() } ?: "друг"
-                                            val title = "Помощь с задачей дня"
-                                            val firstMsg = "Привет, $uName! 👋\n\nДавай вместе разберем эту задачу по теме \"${currentTask.type}\". Я не буду сразу давать готовый ответ, а помогу шагами.\n\n${currentTask.latexStatement}"
+                                        if (result.result != CheckResult.CORRECT) {
+                                            Spacer(modifier = Modifier.height(12.dp))
+                                            OutlinedButton(
+                                                onClick = {
+                                                    val uName = AiTestManager.savedName.trim()
+                                                        .split(" ").firstOrNull()?.takeIf { it.isNotBlank() } ?: "друг"
+                                                    val title = "Помощь с задачей дня"
+                                                    val firstMsg = "Привет, $uName! 👋\n\nДавай вместе разберем эту задачу по теме \"${currentTask.type}\". Я не буду сразу давать готовый ответ, а помогу шагами.\n\n${currentTask.latexStatement}"
 
-                                            onNavigateToChat(title, firstMsg, currentTask.latexStatement)
-                                        },
-                                        shape = RoundedCornerShape(12.dp),
-                                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.3f)),
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Text("💬 Обсудить задачу", color = Color.White, fontSize = 14.sp)
+                                                    onNavigateToChat(title, firstMsg, currentTask.latexStatement)
+                                                },
+                                                shape = RoundedCornerShape(12.dp),
+                                                border = androidx.compose.foundation.BorderStroke(1.dp, AppTheme.colors.surfaceBorder),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Text("💬 Обсудить задачу", color = AppTheme.colors.textPrimary, fontSize = 14.sp)
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -774,7 +793,7 @@ fun DailyTaskScreen(
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = "Назад",
-                tint = Color.White,
+                tint = AppTheme.colors.textPrimary,
                 modifier = Modifier.size(24.dp)
             )
         }

@@ -1,0 +1,21 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Фон Twitch фиолетовый с закругленными углами -->
+    <path
+        android:fillColor="#9146FF"
+        android:pathData="M18,2H6C3.79,2 2,3.79 2,6v12c0,2.21 1.79,4 4,4h12c2.21,0 4,-1.79 4,-4V6C22,3.79 20.21,2 18,2z" />
+    <!-- Фирменный контур Twitch бабла / маски -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M5,4.5l-1.5,4v10h4v2h2.5l2,-2h3.5l4.5,-4.5v-9.5H5z M18,13.5l-2.5,2.5h-4l-2,2v-2h-3v-9.5h11.5v7z" />
+    <!-- Глазки Twitch / или Play значок клипа внутри -->
+    <path
+        android:fillColor="#9146FF"
+        android:pathData="M10,8.5h2v4h-2z" />
+    <path
+        android:fillColor="#9146FF"
+        android:pathData="M14.5,8.5h2v4h-2z" />
+</vector>

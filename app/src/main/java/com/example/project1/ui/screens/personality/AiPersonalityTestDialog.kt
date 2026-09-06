@@ -21,6 +21,7 @@ import com.example.project1.BuildConfig
 import com.example.project1.data.model.AppInfo
 import com.example.project1.data.storage.AiTestManager
 import com.example.project1.ui.components.MinimalRedLoadingSpinner
+import com.example.project1.ui.theme.AppTheme
 import com.example.project1.util.formatMinutes
 import com.google.ai.client.generativeai.GenerativeModel
 import kotlinx.coroutines.Dispatchers
@@ -67,7 +68,7 @@ fun QuestionBlock(
                     checked = isSelected,
                     onCheckedChange = { onOptionToggled(option) },
                     colors = CheckboxDefaults.colors(
-                        checkedColor = Color(0xFFFF5252),
+                        checkedColor = AppTheme.accent,
                         uncheckedColor = Color.Gray
                     )
                 )
@@ -85,7 +86,7 @@ fun QuestionBlock(
             colors = OutlinedTextFieldDefaults.colors(
                 focusedTextColor = Color.White,
                 unfocusedTextColor = Color.White,
-                focusedBorderColor = Color(0xFFFF5252),
+                focusedBorderColor = AppTheme.accent,
                 unfocusedBorderColor = Color.White.copy(alpha = 0.2f)
             )
         )
@@ -253,7 +254,7 @@ fun AiPersonalityTestDialog(
                         currentStep = 0
                         stage = AiTestStage.INTRO
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252))
+                    colors = ButtonDefaults.buttonColors(containerColor = AppTheme.accent)
                 ) {
                     Text("Да, сбросить", color = Color.White)
                 }
@@ -304,7 +305,7 @@ fun AiPersonalityTestDialog(
                                 currentStep = 0
                                 stage = AiTestStage.QUESTIONS
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252)),
+                            colors = ButtonDefaults.buttonColors(containerColor = AppTheme.accent),
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
@@ -328,7 +329,7 @@ fun AiPersonalityTestDialog(
                                 text = "${currentStep + 1} / $totalSteps",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = Color(0xFFFF5252)
+                                color = AppTheme.accent
                             )
                         }
 
@@ -412,7 +413,7 @@ fun AiPersonalityTestDialog(
                                             colors = OutlinedTextFieldDefaults.colors(
                                                 focusedTextColor = Color.White,
                                                 unfocusedTextColor = Color.White,
-                                                focusedBorderColor = Color(0xFFFF5252),
+                                                focusedBorderColor = AppTheme.accent,
                                                 unfocusedBorderColor = Color.White.copy(alpha = 0.2f)
                                             )
                                         )
@@ -452,7 +453,7 @@ fun AiPersonalityTestDialog(
                                                 RadioButton(
                                                     selected = (selectedStyle == styleText),
                                                     onClick = { selectedStyle = styleText },
-                                                    colors = RadioButtonDefaults.colors(selectedColor = Color(0xFFFF5252))
+                                                    colors = RadioButtonDefaults.colors(selectedColor = AppTheme.accent)
                                                 )
                                                 Spacer(modifier = Modifier.width(6.dp))
                                                 Text(styleText, color = Color.White, fontSize = 13.sp)
@@ -467,7 +468,7 @@ fun AiPersonalityTestDialog(
                                             text = "Финальное завершение настройки ИИ",
                                             fontSize = 15.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = Color(0xFFFF5252)
+                                            color = AppTheme.accent
                                         )
                                         Spacer(modifier = Modifier.height(12.dp))
                                         Row(
@@ -483,7 +484,7 @@ fun AiPersonalityTestDialog(
                                                 colors = OutlinedTextFieldDefaults.colors(
                                                     focusedTextColor = Color.White,
                                                     unfocusedTextColor = Color.White,
-                                                    focusedBorderColor = Color(0xFFFF5252)
+                                                    focusedBorderColor = AppTheme.accent
                                                 )
                                             )
                                         }
@@ -501,7 +502,7 @@ fun AiPersonalityTestDialog(
                                                 colors = OutlinedTextFieldDefaults.colors(
                                                     focusedTextColor = Color.White,
                                                     unfocusedTextColor = Color.White,
-                                                    focusedBorderColor = Color(0xFFFF5252)
+                                                    focusedBorderColor = AppTheme.accent
                                                 )
                                             )
                                         }
@@ -514,7 +515,7 @@ fun AiPersonalityTestDialog(
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
                                 text = if (currentStep == 0 || currentStep == 1) "* Выберите хотя бы один вариант" else "* Заполните все поля",
-                                color = Color(0xFFFF5252),
+                                color = AppTheme.accent,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Medium
                             )
@@ -544,7 +545,7 @@ fun AiPersonalityTestDialog(
                                     onClick = { currentStep++ },
                                     enabled = isStepValid,
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFFFF5252),
+                                        containerColor = AppTheme.accent,
                                         disabledContainerColor = Color(0xFF332222)
                                     ),
                                     shape = RoundedCornerShape(12.dp)
@@ -556,7 +557,7 @@ fun AiPersonalityTestDialog(
                                     onClick = { stage = AiTestStage.LOADING },
                                     enabled = isStepValid,
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFFFF5252),
+                                        containerColor = AppTheme.accent,
                                         disabledContainerColor = Color(0xFF332222)
                                     ),
                                     shape = RoundedCornerShape(12.dp)
@@ -612,7 +613,7 @@ fun AiPersonalityTestDialog(
                                     colors = OutlinedTextFieldDefaults.colors(
                                         focusedTextColor = Color.White,
                                         unfocusedTextColor = Color.White,
-                                        focusedBorderColor = Color(0xFFFF5252),
+                                        focusedBorderColor = AppTheme.accent,
                                         unfocusedBorderColor = Color.White.copy(alpha = 0.2f)
                                     )
                                 )
@@ -650,7 +651,7 @@ fun AiPersonalityTestDialog(
                                 text = "Рекомендуемое время на день:",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = Color(0xFFFF5252)
+                                color = AppTheme.accent
                             )
                             Spacer(modifier = Modifier.height(8.dp))
 
@@ -660,7 +661,14 @@ fun AiPersonalityTestDialog(
                             ) {
                                 generatedRecs.toList().forEach { (pkg, mins) ->
                                     val app = top5Apps.find { it.packageName == pkg }
-                                    val name = app?.name ?: if (pkg == "com.google.android.youtube.shorts") "YouTube Shorts" else pkg
+                                    val name = app?.name ?: when (pkg) {
+                                        "com.google.android.youtube.shorts" -> "YouTube Shorts"
+                                        "com.instagram.android.reels" -> "Instagram Reels"
+                                        "com.vkontakte.android.clips" -> "VK Клипы"
+                                        "tv.twitch.android.app.clips" -> "Twitch Клипы"
+                                        else -> pkg
+                                    }
+
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -671,7 +679,7 @@ fun AiPersonalityTestDialog(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text(name, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                                        Text(formatMinutes(mins), color = Color(0xFFFF5252), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                        Text(formatMinutes(mins), color = AppTheme.accent, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }
@@ -706,7 +714,7 @@ fun AiPersonalityTestDialog(
                                         onApplyRecommendations(generatedRecs)
                                         onDismiss()
                                     },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252)),
+                                    colors = ButtonDefaults.buttonColors(containerColor = AppTheme.accent),
                                     shape = RoundedCornerShape(12.dp),
                                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                                     modifier = Modifier.weight(1f)

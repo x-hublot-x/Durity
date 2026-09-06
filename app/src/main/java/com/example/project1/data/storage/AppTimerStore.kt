@@ -72,6 +72,8 @@ object AppTimerStore {
 
     private const val KEY_SHORTS_TIME = "shorts_time_spent_seconds"
     private const val KEY_SHORTS_DAY = "shorts_day_key"
+    private const val KEY_SHORT_VIDEO_TIME_PREFIX = "short_video_time_"
+    private const val KEY_SHORT_VIDEO_DAY_PREFIX = "short_video_day_"
 
     fun getShortsSpentSeconds(): Long {
         val ctx = appContext ?: return 0L
@@ -88,6 +90,30 @@ object AppTimerStore {
             .putString(KEY_SHORTS_DAY, getTodayKey())
             .apply()
     }
+
+    fun getShortVideoSpentSeconds(packageName: String): Long {
+        if (packageName == "com.google.android.youtube.shorts") {
+            return getShortsSpentSeconds()
+        }
+        val ctx = appContext ?: return 0L
+        val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val savedDay = prefs.getString(KEY_SHORT_VIDEO_DAY_PREFIX + packageName, null)
+        if (savedDay != getTodayKey()) return 0L
+        return prefs.getLong(KEY_SHORT_VIDEO_TIME_PREFIX + packageName, 0L)
+    }
+
+    fun saveShortVideoSpentSeconds(packageName: String, seconds: Long) {
+        if (packageName == "com.google.android.youtube.shorts") {
+            saveShortsSpentSeconds(seconds)
+            return
+        }
+        val ctx = appContext ?: return
+        ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putLong(KEY_SHORT_VIDEO_TIME_PREFIX + packageName, seconds)
+            .putString(KEY_SHORT_VIDEO_DAY_PREFIX + packageName, getTodayKey())
+            .apply()
+    }
+
 
     // ─── Приватные методы ─────────────────────────────────────────────────────
 
