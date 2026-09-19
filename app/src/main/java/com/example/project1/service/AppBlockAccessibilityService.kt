@@ -730,13 +730,12 @@ class AppBlockAccessibilityService : AccessibilityService() {
         }
 
         val todayStart = getTodayStart()
-        val startTime = if (timerData.addedTimestamp > todayStart) timerData.addedTimestamp else todayStart
         val isFg = (currentForegroundPackage == packageName)
 
         val usedMs = com.example.project1.util.getAppUsageMs(
             context = applicationContext,
             packageName = packageName,
-            startTime = startTime,
+            startTime = todayStart,
             endTime = now,
             isCurrentlyForeground = isFg
         )

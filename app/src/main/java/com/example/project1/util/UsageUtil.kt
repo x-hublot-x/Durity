@@ -135,12 +135,11 @@ fun getAppUsageMinutesThisWeek(context: Context, packageName: String, addedTimes
         set(Calendar.MILLISECOND, 0)
     }
     val startOfDay = calendar.timeInMillis
-    val startTime = if (addedTimestamp > startOfDay) addedTimestamp else startOfDay
 
     val usedMs = getAppUsageMs(
         context = context,
         packageName = packageName,
-        startTime = startTime,
+        startTime = startOfDay,
         endTime = now,
         isCurrentlyForeground = false
     )
