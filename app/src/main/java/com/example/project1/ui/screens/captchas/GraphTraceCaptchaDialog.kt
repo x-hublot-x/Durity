@@ -349,7 +349,7 @@ fun GraphTraceCaptchaDialog(
 
                 val hint = when {
                     attemptsLeft <= 0 -> "Попытки исчерпаны. Закрытие..."
-                    isSuccess         -> "✓ Верно!"
+                    isSuccess         -> "Верно!"
                     phase == 0        -> "Смотри внимательно..."
                     phase == 1        -> "Запоминай траекторию"
                     phase == 2        -> "Нарисуй линию пальцем • Осталось: $attemptsLeft"

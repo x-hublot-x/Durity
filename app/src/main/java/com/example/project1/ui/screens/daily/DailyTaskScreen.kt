@@ -12,6 +12,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -19,8 +20,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.rounded.Cancel
+import androidx.compose.material.icons.rounded.ChatBubbleOutline
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Lightbulb
+import androidx.compose.material.icons.rounded.MenuBook
+import androidx.compose.material.icons.rounded.Sync
+import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.haze
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,12 +48,17 @@ import com.example.project1.R
 import com.example.project1.api.checkAnswerWithAi
 import com.example.project1.api.generateDailyTaskWithAi
 import com.example.project1.api.getHintForTask
+import com.example.project1.ui.components.GradientText
+import com.example.project1.ui.components.PrimaryGradientButton
 import com.example.project1.data.model.CheckResponse
 import com.example.project1.data.model.CheckResult
 import com.example.project1.data.model.DailyIntegralTask
+import com.example.project1.util.VibrationUtil
+import com.example.project1.util.hapticClickable
 import com.example.project1.data.storage.AiTestManager
 import com.example.project1.data.storage.DailyTaskStorage
 import com.example.project1.ui.components.CoinIcon
+import com.example.project1.ui.components.MixedMathText
 import com.example.project1.ui.theme.AppTheme
 import com.example.project1.ui.components.TaskLatexView
 import com.example.project1.ui.screens.home.MathReferenceFullScreen
@@ -130,55 +146,38 @@ fun DailyTaskScreen(
     LaunchedEffect(streakAnimPhase) {
         when (streakAnimPhase) {
             StreakAnimPhase.EXPANDING -> {
-                delay(300) // Время расширения
+                delay(180) // Быстрое плавное расширение плашки
                 streakAnimPhase = StreakAnimPhase.PLAYING_VIDEO
             }
             StreakAnimPhase.PLAYING_VIDEO -> {
-                delay(2500) // Длительность видео
-                // Обновляем displayedStreak на новое значение и запускаем перелистывание
+                // Огонь загорается, через 350мс мгновенно перелистываем число с тактильным откликом
+                delay(350)
                 displayedStreak = streak
                 showNewStreakNumber = true
+                com.example.project1.util.VibrationUtil.vibrateClick(context)
+                delay(550) // Небольшая пауза для наслаждения огнём
                 streakAnimPhase = StreakAnimPhase.SHOWING_FIRE
             }
             StreakAnimPhase.SHOWING_FIRE -> {
-                delay(600)
+                delay(300)
                 streakAnimPhase = StreakAnimPhase.SHRINKING
             }
             StreakAnimPhase.SHRINKING -> {
-                delay(400)
+                delay(220)
                 streakAnimPhase = StreakAnimPhase.IDLE
             }
             else -> {}
         }
     }
 
-    // ── Диалог-календарь ──────────────────────────────────────────────────────
-    if (showStreakCalendar) {
-        StreakCalendarDialog(
-            streak = streak,
-            coins = coins,
-            freezeCount = freezeCount,
-            solvedDays = solvedDays,
-            frozenDays = frozenDays,
-            activeStreakDays = activeStreakDays,
-            onBuyFreezes = { count ->
-                val success = DailyTaskStorage.buyFreezes(context, count)
-                if (success) {
-                    coins = DailyTaskStorage.getCoins(context)
-                    freezeCount = DailyTaskStorage.getFreezes(context)
-                    streak = DailyTaskStorage.getStreak(context)
-                    solvedDays = DailyTaskStorage.getSolvedDays(context)
-                    frozenDays = DailyTaskStorage.getFrozenDays(context)
-                    activeStreakDays = DailyTaskStorage.getActiveStreakDays(context)
-                }
-            },
-            onDismiss = { showStreakCalendar = false }
-        )
-    }
+    val hazeState = remember { HazeState() }
 
     // ── Справочник ────────────────────────────────────────────────────────────
     if (showMathReference) {
-        MathReferenceFullScreen(onDismiss = { showMathReference = false })
+        MathReferenceFullScreen(
+            onDismiss = { showMathReference = false },
+            hazeState = hazeState
+        )
     }
 
     Box(
@@ -189,6 +188,7 @@ fun DailyTaskScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .haze(hazeState)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 100.dp)
@@ -201,14 +201,13 @@ fun DailyTaskScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
-                    Text(
+                    GradientText(
                         text = "Задача дня",
                         fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = AppTheme.colors.textPrimary
+                        fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "Обновляется каждый день в 3:00 МСК",
+                        text = "Обновляется каждый день в 00:00 МСК",
                         fontSize = 12.sp,
                         color = AppTheme.colors.textSecondary
                     )
@@ -220,42 +219,40 @@ fun DailyTaskScreen(
 
                 val streakColor by animateColorAsState(
                     targetValue = if (fireActive || isAnimating) Color(0xFFFF9100) else Color.Gray,
-                    animationSpec = tween(300),
+                    animationSpec = tween(200),
                     label = "streakColor"
                 )
 
                 val badgeScale by animateFloatAsState(
                     targetValue = when (streakAnimPhase) {
-                        StreakAnimPhase.EXPANDING, StreakAnimPhase.PLAYING_VIDEO, StreakAnimPhase.SHOWING_FIRE -> 2.0f
-                        StreakAnimPhase.SHRINKING -> 1.4f
+                        StreakAnimPhase.EXPANDING, StreakAnimPhase.PLAYING_VIDEO, StreakAnimPhase.SHOWING_FIRE -> 1.8f
+                        StreakAnimPhase.SHRINKING -> 1.25f
                         else -> 1f
                     },
-                    animationSpec = tween(durationMillis = when (streakAnimPhase) {
-                        StreakAnimPhase.EXPANDING -> 400
-                        StreakAnimPhase.SHRINKING -> 500
-                        else -> 250
-                    }),
+                    animationSpec = androidx.compose.animation.core.spring(
+                        dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+                        stiffness = androidx.compose.animation.core.Spring.StiffnessMedium
+                    ),
                     label = "badgeScale"
                 )
 
                 val bgColor by animateColorAsState(
                     targetValue = if (fireActive || isAnimating) Color(0xFF251A14) else Color(0xFF1E1E24),
-                    animationSpec = tween(300),
+                    animationSpec = tween(200),
                     label = "bgColor"
                 )
 
                 // Смещение влево при увеличении, чтобы плашка не выходила за экран
                 val badgeOffsetX by animateFloatAsState(
                     targetValue = when (streakAnimPhase) {
-                        StreakAnimPhase.EXPANDING, StreakAnimPhase.PLAYING_VIDEO, StreakAnimPhase.SHOWING_FIRE -> -40f
-                        StreakAnimPhase.SHRINKING -> -16f
+                        StreakAnimPhase.EXPANDING, StreakAnimPhase.PLAYING_VIDEO, StreakAnimPhase.SHOWING_FIRE -> -32f
+                        StreakAnimPhase.SHRINKING -> -10f
                         else -> 0f
                     },
-                    animationSpec = tween(durationMillis = when (streakAnimPhase) {
-                        StreakAnimPhase.EXPANDING -> 400
-                        StreakAnimPhase.SHRINKING -> 500
-                        else -> 250
-                    }),
+                    animationSpec = androidx.compose.animation.core.spring(
+                        dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+                        stiffness = androidx.compose.animation.core.Spring.StiffnessMedium
+                    ),
                     label = "badgeOffsetX"
                 )
 
@@ -273,6 +270,7 @@ fun DailyTaskScreen(
                             .background(bgColor)
                             .border(1.dp, streakColor, RoundedCornerShape(12.dp))
                             .clickable(enabled = streakAnimPhase == StreakAnimPhase.IDLE) {
+                                com.example.project1.util.VibrationUtil.vibrateTick(context)
                                 coins = DailyTaskStorage.getCoins(context)
                                 freezeCount = DailyTaskStorage.getFreezes(context)
                                 streak = DailyTaskStorage.getStreak(context)
@@ -385,7 +383,12 @@ fun DailyTaskScreen(
                                         .background(Color(0xFF4CAF50)),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Text("✓", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                    Icon(
+                                        imageVector = Icons.Rounded.Check,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(16.dp)
+                                    )
                                 }
                                 Text(
                                     text = "Задача решена! Приходи завтра за новой.",
@@ -413,7 +416,12 @@ fun DailyTaskScreen(
                             ),
                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)
                         ) {
-                            Text("📖", fontSize = 15.sp)
+                            Icon(
+                                imageVector = Icons.Rounded.MenuBook,
+                                contentDescription = null,
+                                tint = Color(0xFF7C4DFF),
+                                modifier = Modifier.size(16.dp)
+                            )
                             Spacer(Modifier.width(6.dp))
                             Text("Справочник", color = Color(0xFF7C4DFF), fontSize = 13.sp)
                         }
@@ -424,14 +432,14 @@ fun DailyTaskScreen(
                                     .split(" ").firstOrNull()?.takeIf { it.isNotBlank() } ?: "друг"
                                 val title = "Похожие задачи — ${currentTask.type}"
                                 val firstMsg = buildString {
-                                    appendLine("Привет, $uName! 👋 Давай потренируемся на похожих задачах.")
+                                    appendLine("Привет, $uName! Давай потренируемся на похожих задачах.")
                                     appendLine()
                                     appendLine("Вот исходная задача дня:")
                                     appendLine(currentTask.latexStatement)
                                     appendLine()
                                     appendLine("Пожалуйста, сгенерируй **3 похожих задачи** по теме «${currentTask.type}» — аналогичного уровня сложности. Выведи их пронумерованным списком.")
                                     appendLine()
-                                    append("После каждой задачи оставь место для моего решения. Как только я пришлю решение — проверь его и дай обратную связь. Начнём? 🚀")
+                                    append("После каждой задачи оставь место для моего решения. Как только я пришлю решение — проверь его и дай обратную связь. Начнём?")
                                 }
                                 onNavigateToChat(title, firstMsg, currentTask.latexStatement)
                             },
@@ -442,7 +450,12 @@ fun DailyTaskScreen(
                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("🔁", fontSize = 15.sp)
+                            Icon(
+                                imageVector = Icons.Rounded.Sync,
+                                contentDescription = null,
+                                tint = Color(0xFF4CAF50),
+                                modifier = Modifier.size(16.dp)
+                            )
                             Spacer(Modifier.width(6.dp))
                             Text("Сгенерировать похожие", color = Color(0xFF4CAF50), fontSize = 13.sp)
                         }
@@ -491,9 +504,9 @@ fun DailyTaskScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    Button(
+                    PrimaryGradientButton(
                         onClick = {
-                            if (answerText.isBlank()) return@Button
+                            if (answerText.isBlank()) return@PrimaryGradientButton
                             scope.launch {
                                 isChecking = true
                                 val resp = checkAnswerWithAi(
@@ -505,6 +518,7 @@ fun DailyTaskScreen(
                                 if (resp.result == CheckResult.CORRECT) {
                                     DailyTaskStorage.markSolvedToday(context)
                                     DailyTaskStorage.addCoins(context, 100)
+                                    com.example.project1.data.storage.UserRatingStorage.addRating(context, 15)
                                     coins = DailyTaskStorage.getCoins(context)
                                     val newStreak = DailyTaskStorage.getStreak(context)
                                     solvedDays = DailyTaskStorage.getSolvedDays(context)
@@ -523,7 +537,6 @@ fun DailyTaskScreen(
                             }
                         },
                         enabled = answerText.isNotBlank() && !isChecking,
-                        colors = ButtonDefaults.buttonColors(containerColor = AppTheme.accent),
                         shape = RoundedCornerShape(14.dp),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -556,7 +569,12 @@ fun DailyTaskScreen(
                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("📖", fontSize = 14.sp)
+                            Icon(
+                                imageVector = Icons.Rounded.MenuBook,
+                                contentDescription = null,
+                                tint = Color(0xFF7C4DFF),
+                                modifier = Modifier.size(16.dp)
+                            )
                             Spacer(Modifier.width(4.dp))
                             Text("Справочник", color = Color(0xFF7C4DFF), fontSize = 12.sp)
                         }
@@ -589,7 +607,12 @@ fun DailyTaskScreen(
                                     strokeWidth = 2.dp
                                 )
                             } else {
-                                Text("💡", fontSize = 14.sp)
+                                Icon(
+                                    imageVector = Icons.Rounded.Lightbulb,
+                                    contentDescription = null,
+                                    tint = Color(0xFFFFB300),
+                                    modifier = Modifier.size(16.dp)
+                                )
                             }
                             Spacer(Modifier.width(4.dp))
                             Text("Подсказка", color = Color(0xFFFFB300), fontSize = 12.sp)
@@ -602,14 +625,14 @@ fun DailyTaskScreen(
                                     .split(" ").firstOrNull()?.takeIf { it.isNotBlank() } ?: "друг"
                                 val title = "Похожие задачи — ${currentTask.type}"
                                 val firstMsg = buildString {
-                                    appendLine("Привет, $uName! 👋 Давай потренируемся на похожих задачах.")
+                                    appendLine("Привет, $uName! Давай потренируемся на похожих задачах.")
                                     appendLine()
                                     appendLine("Вот исходная задача дня:")
                                     appendLine(currentTask.latexStatement)
                                     appendLine()
                                     appendLine("Пожалуйста, сгенерируй **3 похожих задачи** по теме «${currentTask.type}» — аналогичного уровня сложности. Выведи их пронумерованным списком.")
                                     appendLine()
-                                    append("После каждой задачи оставь место для моего решения. Как только я пришлю решение — проверь его и дай обратную связь. Начнём? 🚀")
+                                    append("После каждой задачи оставь место для моего решения. Как только я пришлю решение — проверь его и дай обратную связь. Начнём?")
                                 }
                                 onNavigateToChat(title, firstMsg, currentTask.latexStatement)
                             },
@@ -620,7 +643,12 @@ fun DailyTaskScreen(
                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("🔁", fontSize = 14.sp)
+                            Icon(
+                                imageVector = Icons.Rounded.Sync,
+                                contentDescription = null,
+                                tint = Color(0xFF4CAF50),
+                                modifier = Modifier.size(16.dp)
+                            )
                             Spacer(Modifier.width(4.dp))
                             Text("Похожие", color = Color(0xFF4CAF50), fontSize = 12.sp)
                         }
@@ -646,7 +674,12 @@ fun DailyTaskScreen(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
-                                        Text("💡", fontSize = 18.sp)
+                                        Icon(
+                                            imageVector = Icons.Rounded.Lightbulb,
+                                            contentDescription = null,
+                                            tint = Color(0xFFFFB300),
+                                            modifier = Modifier.size(18.dp)
+                                        )
                                         Text(
                                             text = "Подсказка",
                                             fontSize = 15.sp,
@@ -655,17 +688,16 @@ fun DailyTaskScreen(
                                         )
                                     }
                                     Spacer(modifier = Modifier.height(8.dp))
-                                    Text(
+                                    MixedMathText(
                                         text = hintText,
-                                        fontSize = 14.sp,
-                                        color = Color.White.copy(alpha = 0.9f),
-                                        lineHeight = 20.sp
+                                        textColor = Color.White.copy(alpha = 0.95f),
+                                        textSizeSp = 14
                                     )
                                     Spacer(modifier = Modifier.height(12.dp))
                                     OutlinedButton(
                                         onClick = {
                                             val title = "Помощь с задачей дня"
-                                            val hintBotMsg = "💡 **Подсказка к задаче**\n\n$hintText\n\n---\nЗадача: ${currentTask.latexStatement}\n\nЗадавай вопросы — помогу разобраться пошагово, без готового ответа."
+                                            val hintBotMsg = "**Подсказка к задаче**\n\n$hintText\n\n---\nЗадача: ${currentTask.latexStatement}\n\nЗадавай вопросы — помогу разобраться пошагово, без готового ответа."
                                             onNavigateToChat(title, hintBotMsg, currentTask.latexStatement)
                                         },
                                         shape = RoundedCornerShape(12.dp),
@@ -674,7 +706,18 @@ fun DailyTaskScreen(
                                         ),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        Text("💬 Обсудить задачу", color = Color.White, fontSize = 14.sp)
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.ChatBubbleOutline,
+                                                contentDescription = null,
+                                                tint = Color.White,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Text("Обсудить задачу", color = Color.White, fontSize = 14.sp)
+                                        }
                                     }
                                 }
                             }
@@ -691,10 +734,10 @@ fun DailyTaskScreen(
                             Column {
                                 Spacer(modifier = Modifier.height(16.dp))
 
-                                val (bgColor, borderColor, emoji) = when (result.result) {
-                                    CheckResult.CORRECT -> Triple(Color(0xFF1A2E1A), Color(0xFF4CAF50), "✅")
-                                    CheckResult.CLOSE -> Triple(Color(0xFF2E2A1A), Color(0xFFFFB300), "⚠️")
-                                    CheckResult.WRONG -> Triple(Color(0xFF2E1A1A), Color(0xFFFF5252), "❌")
+                                val (bgColor, borderColor, resultIcon) = when (result.result) {
+                                    CheckResult.CORRECT -> Triple(Color(0xFF1A2E1A), Color(0xFF4CAF50), Icons.Rounded.CheckCircle)
+                                    CheckResult.CLOSE -> Triple(Color(0xFF2E2A1A), Color(0xFFFFB300), Icons.Rounded.Warning)
+                                    CheckResult.WRONG -> Triple(Color(0xFF2E1A1A), Color(0xFFFF5252), Icons.Rounded.Cancel)
                                 }
 
                                 Card(
@@ -709,7 +752,12 @@ fun DailyTaskScreen(
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                                         ) {
-                                            Text(emoji, fontSize = 18.sp)
+                                            Icon(
+                                                imageVector = resultIcon,
+                                                contentDescription = null,
+                                                tint = borderColor,
+                                                modifier = Modifier.size(18.dp)
+                                            )
                                             Text(
                                                 text = when (result.result) {
                                                     CheckResult.CORRECT -> "Верно!"
@@ -724,11 +772,10 @@ fun DailyTaskScreen(
 
                                         if (result.comment.isNotBlank()) {
                                             Spacer(modifier = Modifier.height(8.dp))
-                                            Text(
+                                            MixedMathText(
                                                 text = result.comment,
-                                                fontSize = 14.sp,
-                                                color = Color.White.copy(alpha = 0.85f),
-                                                lineHeight = 20.sp
+                                                textColor = Color.White.copy(alpha = 0.9f),
+                                                textSizeSp = 14
                                             )
                                         }
 
@@ -739,15 +786,41 @@ fun DailyTaskScreen(
                                                     val uName = AiTestManager.savedName.trim()
                                                         .split(" ").firstOrNull()?.takeIf { it.isNotBlank() } ?: "друг"
                                                     val title = "Помощь с задачей дня"
-                                                    val firstMsg = "Привет, $uName! 👋\n\nДавай вместе разберем эту задачу по теме \"${currentTask.type}\". Я не буду сразу давать готовый ответ, а помогу шагами.\n\n${currentTask.latexStatement}"
+                                                    val firstMsg = "Привет, $uName!\n\nДавай вместе разберем эту задачу по теме \"${currentTask.type}\". По правилам я не имею права решать её за тебя или давать готовый ответ, но я с радостью проведу тебя через все шаги наводящими вопросами!\n\nВот условие задачи:\n${currentTask.latexStatement}\n\nС чего, по твоему мнению, здесь логичнее всего начать?"
+                                                    val socraticDirective = """
+=== РЕЖИМ СОКРАТОВСКОГО НАСТАВНИКА (SOCRATIC TUTOR) ===
+Ты персональный наставник по высшей математике.
+Пользователь решает задачу дня:
+Тема: ${currentTask.type}
+Условие: ${currentTask.description}
+Формула: ${currentTask.latexStatement}
+Эталон правильного ответа: ${currentTask.correctAnswer}
 
-                                                    onNavigateToChat(title, firstMsg, currentTask.latexStatement)
+СТРОЖАЙШИЕ ПРАВИЛА ВЕДЕНИЯ ДИАЛОГА:
+1. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО писать конечное решение или готовый ответ, даже если пользователь прямо просит: "реши за меня", "напиши ответ", "скажи решение", "дай ответ", "мне лень", "я сдаюсь" и т.д.!
+2. На любые попытки выведать ответ или готовое решение отвечай вежливым, но твёрдым отказом и задавай вопрос по текущему шагу.
+3. Помогай ИСКЛЮЧИТЕЛЬНО наводящими вопросами, подсказками формул, определений, теорем и первым шагом рассуждения.
+4. Веди ученика по шагам: задавай ровно один вопрос за раз, дождись ответа пользователя, оцени его правильность и только затем переходи к следующему шагу решения.
+""".trimIndent()
+
+                                                    onNavigateToChat(title, firstMsg, socraticDirective)
                                                 },
                                                 shape = RoundedCornerShape(12.dp),
                                                 border = androidx.compose.foundation.BorderStroke(1.dp, AppTheme.colors.surfaceBorder),
                                                 modifier = Modifier.fillMaxWidth()
                                             ) {
-                                                Text("💬 Обсудить задачу", color = AppTheme.colors.textPrimary, fontSize = 14.sp)
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Rounded.ChatBubbleOutline,
+                                                        contentDescription = null,
+                                                        tint = AppTheme.colors.textPrimary,
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                    Text("Обсудить задачу", color = AppTheme.colors.textPrimary, fontSize = 14.sp)
+                                                }
                                             }
                                         }
                                     }
@@ -784,7 +857,10 @@ fun DailyTaskScreen(
         }
 
         IconButton(
-            onClick = onBack,
+            onClick = {
+                VibrationUtil.vibrateTick(context)
+                onBack()
+            },
             modifier = Modifier
                 .padding(top = 8.dp, start = 4.dp)
                 .size(40.dp)
@@ -796,6 +872,47 @@ fun DailyTaskScreen(
                 tint = AppTheme.colors.textPrimary,
                 modifier = Modifier.size(24.dp)
             )
+        }
+
+        // ── Диалог-календарь с эффектом размытия заднего фона ────────────────────
+        AnimatedVisibility(
+            visible = showStreakCalendar,
+            enter = fadeIn(tween(180)),
+            exit = ExitTransition.None
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.45f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { showStreakCalendar = false }
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                StreakCalendarDialog(
+                    streak = streak,
+                    coins = coins,
+                    freezeCount = freezeCount,
+                    solvedDays = solvedDays,
+                    frozenDays = frozenDays,
+                    activeStreakDays = activeStreakDays,
+                    onBuyFreezes = { count ->
+                        val success = DailyTaskStorage.buyFreezes(context, count)
+                        if (success) {
+                            coins = DailyTaskStorage.getCoins(context)
+                            freezeCount = DailyTaskStorage.getFreezes(context)
+                            streak = DailyTaskStorage.getStreak(context)
+                            solvedDays = DailyTaskStorage.getSolvedDays(context)
+                            frozenDays = DailyTaskStorage.getFrozenDays(context)
+                            activeStreakDays = DailyTaskStorage.getActiveStreakDays(context)
+                        }
+                    },
+                    onDismiss = { showStreakCalendar = false },
+                    hazeState = hazeState
+                )
+            }
         }
     }
 }

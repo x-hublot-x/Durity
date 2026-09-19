@@ -30,6 +30,12 @@ fun Project1Theme(
         textTertiary = Color.White.copy(alpha = 0.4f),
         bottomBarBackground = Color(0x35121626),
         bottomBarBorder = Color.White.copy(alpha = 0.18f),
+        isGradient = accent.isGradient,
+        primaryBrush = if (accent.isGradient) {
+            Brush.horizontalGradient(listOf(accent.primary, accent.secondary))
+        } else {
+            Brush.linearGradient(listOf(accent.primary, accent.primary))
+        },
         gradientBrush = Brush.horizontalGradient(listOf(accent.primary, accent.secondary))
     )
 

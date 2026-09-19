@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.project1.data.model.TrigTask
 import com.example.project1.ui.components.MathView
+import com.example.project1.ui.components.PrimaryGradientButton
 import com.example.project1.ui.theme.AppTheme
 import kotlin.math.*
 
@@ -185,12 +186,12 @@ fun TrigTaskDialog(
                         Text("Отмена", color = Color.White.copy(alpha = 0.6f))
                     }
 
-                    Button(
+                    PrimaryGradientButton(
                         onClick = {
                             val sel = selectedAngle
                             if (sel == null) {
                                 errorMessage = "Поставьте точку на окружности!"
-                                return@Button
+                                return@PrimaryGradientButton
                             }
 
                             // Проверяем с учетом периодичности (близость к 0 / 2π)
@@ -203,11 +204,11 @@ fun TrigTaskDialog(
                                 errorMessage = "Неверный угол! Попробуйте еще раз."
                             }
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = AppTheme.accent),
                         shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text("Проверить", color = Color.White)
+                        Text("Проверить", color = Color.White, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }

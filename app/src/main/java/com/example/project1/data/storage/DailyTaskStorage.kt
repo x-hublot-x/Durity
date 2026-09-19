@@ -1,6 +1,7 @@
 package com.example.project1.data.storage
 
 import android.content.Context
+import com.example.project1.api.OFFLINE_DAILY_TASKS
 import com.example.project1.data.model.DailyIntegralTask
 import org.json.JSONArray
 import org.json.JSONObject
@@ -22,9 +23,7 @@ object DailyTaskStorage {
 
     fun currentMskDay(): Long {
         val msk = TimeZone.getTimeZone("Europe/Moscow")
-        val cal = Calendar.getInstance(msk).apply {
-            if (get(Calendar.HOUR_OF_DAY) < 3) add(Calendar.DAY_OF_YEAR, -1)
-        }
+        val cal = Calendar.getInstance(msk)
         return cal.get(Calendar.YEAR).toLong() * 1000 + cal.get(Calendar.DAY_OF_YEAR)
     }
 
@@ -49,6 +48,8 @@ object DailyTaskStorage {
         return cal.get(Calendar.YEAR).toLong() * 1000 + cal.get(Calendar.DAY_OF_YEAR)
     }
 
+    private const val KEY_LAST_PENALTY_EPOCH = "last_penalty_epoch"
+
     /**
      * Проверяет пропущенные дни и применяет заморозку, если задача не была решена вплоть до 3:00 МСК
      */
@@ -65,11 +66,14 @@ object DailyTaskStorage {
         if (allActiveEpochs.isEmpty()) return
 
         val maxActiveEpoch = allActiveEpochs.last()
+        val lastPenaltyEpoch = prefs.getLong(KEY_LAST_PENALTY_EPOCH, -1L)
 
         // Если последний активный день раньше вчерашнего дня — есть пропуски!
         if (maxActiveEpoch < todayEpoch - 1) {
-            var missedEpoch = maxActiveEpoch + 1
+            val startMissed = maxOf(maxActiveEpoch + 1, lastPenaltyEpoch + 1)
+            var missedEpoch = startMissed
             var changed = false
+            var penaltyApplied = false
 
             while (missedEpoch < todayEpoch) {
                 if (freezeCount > 0) {
@@ -79,17 +83,22 @@ object DailyTaskStorage {
                     changed = true
                     missedEpoch++
                 } else {
-                    // Заморозок больше нет, цепочка прерывается
+                    // Заморозок больше нет, цепочка прерывается, штраф к рейтингу за пропуск (единоразово за окно пропуска)
+                    com.example.project1.data.storage.UserRatingStorage.addRating(context, -10)
+                    penaltyApplied = true
                     break
                 }
             }
 
+            val editor = prefs.edit()
             if (changed) {
-                prefs.edit()
-                    .putInt(KEY_FREEZE_COUNT, freezeCount)
+                editor.putInt(KEY_FREEZE_COUNT, freezeCount)
                     .putStringSet(KEY_FROZEN_DAYS_SET, frozenDays.map { it.toString() }.toSet())
-                    .apply()
             }
+            if (penaltyApplied || missedEpoch >= todayEpoch) {
+                editor.putLong(KEY_LAST_PENALTY_EPOCH, todayEpoch - 1)
+            }
+            editor.apply()
         }
     }
 
@@ -245,6 +254,63 @@ object DailyTaskStorage {
             .edit().putString(KEY_PREVIOUS_TASKS, array.toString()).apply()
     }
 
+    private const val KEY_TASKS_BY_DAY_MAP = "tasks_by_day_map_json"
+
+    fun getTaskForDay(context: Context, dayCode: Long): DailyIntegralTask? {
+        val today = currentMskDay()
+        if (dayCode > today) return null
+
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+        // 1. Проверяем сохраненную карту задач по дням (база календаря)
+        val jsonStr = prefs.getString(KEY_TASKS_BY_DAY_MAP, null)
+        if (jsonStr != null) {
+            try {
+                val root = JSONObject(jsonStr)
+                val dayKey = dayCode.toString()
+                if (root.has(dayKey)) {
+                    val obj = root.getJSONObject(dayKey)
+                    return DailyIntegralTask(
+                        id = obj.optString("id", dayKey),
+                        type = obj.optString("type", "Задача дня"),
+                        latexStatement = obj.optString("latexStatement", ""),
+                        correctAnswer = obj.optString("correctAnswer", ""),
+                        description = obj.optString("description", "")
+                    )
+                }
+            } catch (_: Exception) {}
+        }
+
+        // 2. Если это сегодняшний день и задача сгенерирована — берем её и сохраняем в базу
+        if (dayCode == today) {
+            val current = getSavedTask(context)
+            if (current != null) {
+                saveTaskForDay(context, today, current)
+                return current
+            }
+        }
+
+        // Если для выбранного дня задачи не было сохранено — ничего не выдумываем, возвращаем null
+        return null
+    }
+
+    fun saveTaskForDay(context: Context, dayCode: Long, task: DailyIntegralTask) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val jsonStr = prefs.getString(KEY_TASKS_BY_DAY_MAP, "{}") ?: "{}"
+        try {
+            val root = JSONObject(jsonStr)
+            val taskObj = JSONObject().apply {
+                put("id", task.id)
+                put("type", task.type)
+                put("latexStatement", task.latexStatement)
+                put("correctAnswer", task.correctAnswer)
+                put("description", task.description)
+            }
+            root.put(dayCode.toString(), taskObj)
+            prefs.edit().putString(KEY_TASKS_BY_DAY_MAP, root.toString()).apply()
+        } catch (_: Exception) {}
+    }
+
     fun getSavedTask(context: Context): DailyIntegralTask? {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val today = currentMskDay()
@@ -276,11 +342,13 @@ object DailyTaskStorage {
             put("description", task.description)
         }
 
+        val today = currentMskDay()
         prefs.edit()
-            .putLong(KEY_LAST_TASK_DATE, currentMskDay())
+            .putLong(KEY_LAST_TASK_DATE, today)
             .putString(KEY_CURRENT_TASK_JSON, obj.toString())
             .apply()
 
+        saveTaskForDay(context, today, task)
         saveTaskHistory(context, task.latexStatement)
     }
 

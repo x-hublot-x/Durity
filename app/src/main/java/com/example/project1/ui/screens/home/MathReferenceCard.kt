@@ -9,8 +9,12 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.SquareFoot
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,11 +23,21 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.project1.ui.components.GradientIcon
+import com.example.project1.ui.components.GradientText
 import com.example.project1.ui.components.KatexViewLeft
 import com.example.project1.ui.theme.AppTheme
+import com.example.project1.util.VibrationUtil
+import com.example.project1.util.hapticClickable
+import dev.chrisbanes.haze.HazeDefaults
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeChild
+import kotlinx.coroutines.launch
 
 // ── Модели ────────────────────────────────────────────────────────────────────
 
@@ -544,46 +558,90 @@ val mathSections: List<MathSection> = listOf(
 
 // ── Карточка на главном экране ────────────────────────────────────────────────
 
+// ── Карточка на главном экране ────────────────────────────────────────────────
+
 @Composable
-fun MathReferenceCard() {
+fun MathReferenceCard(
+    hazeState: HazeState? = null,
+    onSheetOpenChanged: ((Boolean) -> Unit)? = null
+) {
     var showSheet by remember { mutableStateOf(false) }
     val colors = AppTheme.colors
+    val context = LocalContext.current
 
-    Box(
+    LaunchedEffect(showSheet) {
+        onSheetOpenChanged?.invoke(showSheet)
+    }
+
+    Card(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
-            .background(colors.surfaceElevated)
-            .border(1.dp, colors.surfaceBorder, RoundedCornerShape(20.dp))
-            .clickable { showSheet = true }
-            .padding(20.dp)
+            .hapticClickable(context) { showSheet = true },
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(52.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(colors.primarySubtle),
-                contentAlignment = Alignment.Center
-            ) { Text("📐", fontSize = 24.sp) }
-
-            Spacer(Modifier.width(14.dp))
-
-            Column(Modifier.weight(1f)) {
-                Text("Справочник", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = colors.textPrimary)
-                Spacer(Modifier.height(3.dp))
-                Text(
-                    "Производные, интегралы, ряды, матрицы…",
-                    fontSize = 12.sp, color = colors.textSecondary
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.horizontalGradient(
+                        if (colors.isDark) {
+                            listOf(Color(0xFF1E1430), Color(0xFF181428))
+                        } else {
+                            listOf(Color(0xFFF3E8FF), Color(0xFFEDE0FF))
+                        }
+                    )
                 )
-            }
+                .border(
+                    1.dp,
+                    Color(0xFF7C4DFF).copy(alpha = 0.5f),
+                    RoundedCornerShape(20.dp)
+                )
+                .padding(20.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(52.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color(0xFF7C4DFF).copy(alpha = 0.22f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.SquareFoot,
+                        contentDescription = null,
+                        tint = Color(0xFF7C4DFF),
+                        modifier = Modifier.size(26.dp)
+                    )
+                }
 
-            Text("›", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = colors.primary)
+                Spacer(Modifier.width(14.dp))
+
+                Column(Modifier.weight(1f)) {
+                    Text("Справочник", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = colors.textPrimary)
+                    Spacer(Modifier.height(3.dp))
+                    Text(
+                        "Производные, интегралы, ряды, матрицы…",
+                        fontSize = 12.sp, color = colors.textSecondary
+                    )
+                }
+
+                Spacer(Modifier.width(8.dp))
+
+                Text("›", fontSize = 26.sp, fontWeight = FontWeight.Light, color = colors.textTertiary)
+            }
         }
     }
 
     if (showSheet) {
-        MathReferenceFullScreen(onDismiss = { showSheet = false })
+        MathReferenceFullScreen(
+            onDismiss = { showSheet = false },
+            hazeState = hazeState
+        )
     }
 }
 
@@ -591,67 +649,132 @@ fun MathReferenceCard() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MathReferenceFullScreen(onDismiss: () -> Unit) {
+fun MathReferenceFullScreen(
+    onDismiss: () -> Unit,
+    hazeState: HazeState? = null
+) {
     val colors = AppTheme.colors
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val sheetShape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = colors.background,
-        dragHandle = {
-            Box(
-                Modifier
-                    .padding(top = 12.dp, bottom = 4.dp)
-                    .width(40.dp)
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(colors.surfaceBorder)
-            )
-        }
+        sheetState = sheetState,
+        containerColor = Color.Transparent,
+        dragHandle = null,
+        shape = sheetShape
     ) {
-        Column(Modifier.fillMaxSize()) {
-            // Заголовок
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("📐", fontSize = 22.sp)
-                Spacer(Modifier.width(10.dp))
-                Text(
-                    "Математический справочник",
-                    fontSize = 19.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = colors.textPrimary,
-                    modifier = Modifier.weight(1f)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.92f)
+                .then(
+                    if (hazeState != null) {
+                        Modifier.hazeChild(
+                            state = hazeState,
+                            shape = sheetShape,
+                            style = HazeDefaults.style(
+                                backgroundColor = Color(0x18141828),
+                                tint = Color(0x30141828),
+                                blurRadius = 32.dp,
+                                noiseFactor = 0.04f
+                            )
+                        )
+                    } else Modifier
                 )
+                .background(
+                    brush = Brush.verticalGradient(
+                        listOf(
+                            Color(0x52283248),
+                            Color(0x35121526)
+                        )
+                    ),
+                    shape = sheetShape
+                )
+                .border(
+                    width = 1.2.dp,
+                    brush = Brush.verticalGradient(
+                        listOf(
+                            Color.White.copy(alpha = 0.28f),
+                            Color.White.copy(alpha = 0.06f)
+                        )
+                    ),
+                    shape = sheetShape
+                )
+                .clip(sheetShape)
+        ) {
+            Column(Modifier.fillMaxSize()) {
+                // Драг-хэндл
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .clickable { onDismiss() }
-                        .background(colors.surfaceElevated)
-                        .border(1.dp, colors.surfaceBorder, RoundedCornerShape(10.dp))
-                        .padding(horizontal = 12.dp, vertical = 7.dp)
+                        .align(Alignment.CenterHorizontally)
+                        .padding(top = 10.dp, bottom = 4.dp)
+                        .width(42.dp)
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(Color.White.copy(alpha = 0.2f))
+                )
+
+                // Заголовок
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("✕", fontSize = 14.sp, color = colors.textPrimary)
+                    GradientIcon(
+                        imageVector = Icons.Rounded.SquareFoot,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    GradientText(
+                        "Математический справочник",
+                        fontSize = 19.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.08f))
+                            .border(1.dp, Color.White.copy(alpha = 0.12f), CircleShape)
+                            .hapticClickable(context) {
+                                coroutineScope.launch {
+                                    sheetState.hide()
+                                    onDismiss()
+                                }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = "Закрыть",
+                            tint = colors.textPrimary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
-            }
 
-            Box(Modifier.fillMaxWidth().height(1.dp).background(colors.surfaceBorder))
+                Box(Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.08f)))
 
-            // Контент
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                mathSections.forEach { section ->
-                    MathSectionCard(section)
+                // Контент
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    mathSections.forEach { section ->
+                        MathSectionCard(section)
+                    }
+                    Spacer(Modifier.height(32.dp))
                 }
-                Spacer(Modifier.height(32.dp))
             }
         }
     }
@@ -669,10 +792,10 @@ fun MathSectionCard(section: MathSection) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
-            .background(colors.surfaceElevated)
+            .background(Color(0x35121626))
             .border(
                 1.dp,
-                if (expanded) colors.primary.copy(alpha = 0.5f) else colors.surfaceBorder,
+                if (expanded) colors.primary.copy(alpha = 0.45f) else Color.White.copy(alpha = 0.08f),
                 RoundedCornerShape(18.dp)
             )
     ) {
@@ -688,10 +811,10 @@ fun MathSectionCard(section: MathSection) {
                 modifier = Modifier
                     .size(40.dp)
                     .clip(RoundedCornerShape(11.dp))
-                    .background(colors.primarySubtle),
+                    .background(colors.primary.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center
             ) {
-                Text(section.emoji, fontSize = 19.sp, color = colors.primary, fontWeight = FontWeight.Bold)
+                GradientText(section.emoji, fontSize = 19.sp, fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.width(13.dp))
             Text(
@@ -701,11 +824,10 @@ fun MathSectionCard(section: MathSection) {
                 color = colors.textPrimary,
                 modifier = Modifier.weight(1f)
             )
-            Text(
+            GradientText(
                 "›",
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
-                color = colors.primary,
                 modifier = Modifier.rotate(arrowAngle)
             )
         }

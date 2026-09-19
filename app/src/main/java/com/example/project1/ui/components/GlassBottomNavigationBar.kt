@@ -295,6 +295,7 @@ private fun NavPillItem(
     modifier: Modifier = Modifier,
     icon: @Composable (Boolean, Color) -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val closeness = (1f - kotlin.math.abs(pillPosition - index)).coerceIn(0f, 1f)
     val isActive  = closeness > 0.5f
     val activeColor = if (isThemed) Color.White else AppTheme.accent
@@ -311,7 +312,10 @@ private fun NavPillItem(
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
-            ) { onClick() }
+            ) {
+                com.example.project1.util.VibrationUtil.vibrateTick(context)
+                onClick()
+            }
             .graphicsLayer {
                 scaleX = contentScale
                 scaleY = contentScale
@@ -323,6 +327,43 @@ private fun NavPillItem(
             text = label,
             fontSize = 11.sp,
             fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
+            color = textColor
+        )
+    }
+}
+
+@Composable
+fun BottomNavItem(
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    iconContent: @Composable (Boolean) -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val colors = AppTheme.colors
+    val inactiveColor = if (colors.isDark) Color.White.copy(alpha = 0.6f) else Color(0xFF6B7280)
+    val textColor by animateColorAsState(
+        targetValue = if (isSelected) colors.primary else inactiveColor,
+        animationSpec = tween(durationMillis = 200),
+        label = "textColor"
+    )
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+        modifier = Modifier
+            .clip(CircleShape)
+            .clickable {
+                com.example.project1.util.VibrationUtil.vibrateTick(context)
+                onClick()
+            }
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+    ) {
+        iconContent(isSelected)
+        Spacer(modifier = Modifier.height(3.dp))
+        Text(
+            text = label,
+            fontSize = 11.sp,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
             color = textColor
         )
     }
@@ -464,7 +505,6 @@ fun TimerIcon(isSelected: Boolean, activeColor: Color = AppTheme.accent) {
 fun SettingsIcon(isSelected: Boolean, activeColor: Color = AppTheme.accent) {
     val inactiveColor = if (AppTheme.colors.isDark) Color.White.copy(alpha = 0.8f) else Color(0xFF6B7280)
     val color = if (isSelected) activeColor else inactiveColor
-    val holeBg = if (activeColor == Color.White) Color(0xFF101424) else Color(0xFF1E2232)
 
     Canvas(modifier = Modifier.size(20.dp)) {
         val center = Offset(size.width / 2f, size.height / 2f)
@@ -492,8 +532,12 @@ fun SettingsIcon(isSelected: Boolean, activeColor: Color = AppTheme.accent) {
         gearPath.close()
 
         if (isSelected) {
-            drawPath(path = gearPath, color = color, style = Fill)
-            drawCircle(color = holeBg, radius = rHole, center = center, style = Fill)
+            val gearWithHole = Path().apply {
+                fillType = androidx.compose.ui.graphics.PathFillType.EvenOdd
+                addPath(gearPath)
+                addOval(androidx.compose.ui.geometry.Rect(center, rHole))
+            }
+            drawPath(path = gearWithHole, color = color, style = Fill)
         } else {
             drawPath(
                 path = gearPath,

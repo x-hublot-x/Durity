@@ -19,16 +19,22 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.rounded.AcUnit
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -38,12 +44,18 @@ import androidx.core.graphics.drawable.toBitmap
 import com.example.project1.data.model.AppInfo
 import com.example.project1.data.model.UNLOCK_BONUS_MINUTES
 import com.example.project1.data.repository.ChessPuzzleRepository
+import com.example.project1.util.hapticClickable
+import com.example.project1.util.hapticCombinedClickable
 import com.example.project1.data.repository.TrigTaskRepository
 import com.example.project1.ui.components.AutoAddIcon
 import com.example.project1.ui.components.SamsungAiStarsIcon
 import com.example.project1.ui.components.WheelPicker
+import com.example.project1.ui.components.PrimaryGradientButton
+import com.example.project1.ui.components.GradientText
 import com.example.project1.ui.screens.captchas.*
 import com.example.project1.ui.screens.personality.AiPersonalityTestDialog
+import com.example.project1.data.storage.AiTestManager
+import com.example.project1.data.storage.UnblockEssayStorage
 import com.example.project1.ui.theme.AppTheme
 import com.example.project1.util.formatMinutes
 
@@ -263,14 +275,15 @@ fun TimersScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            FloatingActionButton(
-                onClick = onAddTimerClick,
-                containerColor = AppTheme.accent,
-                contentColor = Color.White,
-                shape = CircleShape,
-                modifier = Modifier.size(56.dp)
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(CircleShape)
+                    .background(AppTheme.colors.primaryBrush)
+                    .clickable { onAddTimerClick() },
+                contentAlignment = Alignment.Center
             ) {
-                Icon(imageVector = Icons.Default.Add, contentDescription = "Добавить таймер")
+                Icon(imageVector = Icons.Default.Add, contentDescription = "Добавить таймер", tint = Color.White)
             }
 
             FloatingActionButton(
@@ -346,6 +359,7 @@ fun ActiveTimerCard(
     onDelete: () -> Unit,
     onUnlock: () -> Unit
 ) {
+    val context = LocalContext.current
     val isFrozen = app.usedMinutesThisWeek >= app.timeLimitMinutes
 
     var showChessCaptcha by remember { mutableStateOf(false) }
@@ -353,15 +367,20 @@ fun ActiveTimerCard(
     var showTrigTask by remember { mutableStateOf(false) }
     var showNumberCaptcha by remember { mutableStateOf(false) }
     var showGraphCaptcha by remember { mutableStateOf(false) }
+    var showEssayCaptcha by remember { mutableStateOf(false) }
+    var showLockoutAlert by remember { mutableStateOf(false) }
+    var lockoutMinutes by remember { mutableIntStateOf(0) }
 
     var currentPuzzle by remember { mutableStateOf(ChessPuzzleRepository.getRandomPuzzle()) }
     var currentTrigTask by remember { mutableStateOf(TrigTaskRepository.getRandomTask()) }
 
-    val infiniteTransition = rememberInfiniteTransition(label = "wiggleTransition")
+    val blockedGradient = Brush.horizontalGradient(listOf(Color(0xFF0071FF), Color(0xFF00D1FF)))
+
+    val infiniteTransition = rememberInfiniteTransition(label = "shake")
 
     val rotationAngle by infiniteTransition.animateFloat(
-        initialValue = -1f,
-        targetValue = 1f,
+        initialValue = -1.5f,
+        targetValue = 1.5f,
         animationSpec = infiniteRepeatable(
             animation = tween(
                 durationMillis = 140,
@@ -369,13 +388,14 @@ fun ActiveTimerCard(
             ),
             repeatMode = RepeatMode.Reverse
         ),
-        label = "rotationAngle"
+        label = "shakeRotation"
     )
 
     val cardScale by animateFloatAsState(
-        targetValue = if (isEditMode) 0.98f else 1.0f,
+        targetValue = if (isEditMode) 0.96f else 1f,
         animationSpec = spring(
-            stiffness = Spring.StiffnessMediumLow
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium
         ),
         label = "cardScale"
     )
@@ -397,10 +417,11 @@ fun ActiveTimerCard(
                 .background(AppTheme.colors.surface)
                 .border(
                     1.dp,
-                    if (isFrozen) Color(0xFF80D8FF) else AppTheme.accent.copy(alpha = 0.4f),
+                    if (isFrozen) blockedGradient else SolidColor(AppTheme.accent.copy(alpha = 0.4f)),
                     RoundedCornerShape(16.dp)
                 )
-                .combinedClickable(
+                .hapticCombinedClickable(
+                    context = context,
                     onClick = {},
                     onLongClick = onLongPress
                 )
@@ -442,16 +463,26 @@ fun ActiveTimerCard(
                     )
 
                     if (isFrozen) {
-                        Text(
-                            text = "❄ Заморожено (${formatMinutes(app.usedMinutesThisWeek)} за день)",
-                            color = Color(0xFF80D8FF),
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.AcUnit,
+                                contentDescription = null,
+                                tint = Color(0xFF00D1FF),
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text(
+                                text = "Заморожено (${formatMinutes(app.usedMinutesThisWeek)} за день)",
+                                color = Color(0xFF00D1FF),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     } else {
-                        Text(
+                        GradientText(
                             text = "За день: ${formatMinutes(app.usedMinutesThisWeek)} / ${formatMinutes(app.timeLimitMinutes)}",
-                            color = AppTheme.accent,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -503,7 +534,13 @@ fun ActiveTimerCard(
                 IconButton(
                     onClick = {
                         if (isFrozen) {
-                            showChessCaptcha = true
+                            val remaining = UnblockEssayStorage.getLockoutRemainingMinutes(context, app.packageName)
+                            if (remaining > 0) {
+                                lockoutMinutes = remaining
+                                showLockoutAlert = true
+                            } else {
+                                showChessCaptcha = true
+                            }
                         } else {
                             onDelete()
                         }
@@ -513,7 +550,7 @@ fun ActiveTimerCard(
                     Icon(
                         imageVector = if (isFrozen) Icons.Default.Lock else Icons.Default.Delete,
                         contentDescription = if (isFrozen) "Разблокировать (+$UNLOCK_BONUS_MINUTES минут)" else "Удалить",
-                        tint = if (isFrozen) Color(0xFF80D8FF) else AppTheme.accent,
+                        tint = if (isFrozen) Color(0xFF00D1FF) else AppTheme.accent,
                         modifier = Modifier.size(16.dp)
                     )
                 }
@@ -570,20 +607,74 @@ fun ActiveTimerCard(
             onDismiss = { showGraphCaptcha = false },
             onSolved = {
                 showGraphCaptcha = false
-                onUnlock()
+                if (AiTestManager.isTestCompleted) {
+                    showEssayCaptcha = true
+                } else {
+                    onUnlock()
+                }
             }
+        )
+    }
+
+    if (showEssayCaptcha) {
+        AiEssayCaptchaDialog(
+            app = app,
+            onDismiss = { showEssayCaptcha = false },
+            onSolved = {
+                showEssayCaptcha = false
+                onUnlock()
+            },
+            onLockout = {
+                showEssayCaptcha = false
+                lockoutMinutes = 60
+                showLockoutAlert = true
+            }
+        )
+    }
+
+    if (showLockoutAlert) {
+        AlertDialog(
+            onDismissRequest = { showLockoutAlert = false },
+            title = {
+                Text(
+                    text = "Блокировка разблокировки",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = AppTheme.colors.textPrimary
+                )
+            },
+            text = {
+                Text(
+                    text = "Вы исчерпали 5 попыток проверки сочинения ИИ. Возможность разблокировки приложения «${app.name}» заблокирована ещё на $lockoutMinutes мин.",
+                    fontSize = 14.sp,
+                    color = AppTheme.colors.textSecondary,
+                    lineHeight = 20.sp
+                )
+            },
+            confirmButton = {
+                PrimaryGradientButton(
+                    onClick = { showLockoutAlert = false },
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Text("Понятно", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            containerColor = AppTheme.colors.surface,
+            shape = RoundedCornerShape(20.dp)
         )
     }
 }
 
 @Composable
 fun AppItemCard(app: AppInfo, onClick: () -> Unit) {
+    val context = LocalContext.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .background(Color(0xFF1A1A24))
-            .clickable { onClick() }
+            .hapticClickable(context) { onClick() }
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -655,7 +746,12 @@ fun AppSelectionDialog(
                         )
                     },
                     leadingIcon = {
-                        Text("🔍", fontSize = 14.sp)
+                        Icon(
+                            imageVector = Icons.Rounded.Search,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.5f),
+                            modifier = Modifier.size(18.dp)
+                        )
                     },
                     trailingIcon = {
                         if (searchQuery.isNotEmpty()) {
@@ -663,7 +759,12 @@ fun AppSelectionDialog(
                                 onClick = { searchQuery = "" },
                                 modifier = Modifier.size(24.dp)
                             ) {
-                                Text("✕", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
+                                Icon(
+                                    imageVector = Icons.Rounded.Close,
+                                    contentDescription = "Очистить",
+                                    tint = Color.White.copy(alpha = 0.6f),
+                                    modifier = Modifier.size(16.dp)
+                                )
                             }
                         }
                     },
@@ -837,18 +938,17 @@ fun TimerConfigDialog(
                         Text("Отмена", color = Color.White.copy(0.6f))
                     }
 
-                    Button(
+                    PrimaryGradientButton(
                         onClick = {
                             val selectedHour = hoursList.getOrNull(selectedHourIndex)?.toIntOrNull() ?: 0
                             val selectedMinute = minutesList.getOrNull(selectedMinuteIndex)?.toIntOrNull() ?: 0
                             val totalMinutes = selectedHour * 60 + selectedMinute
                             onConfirm(totalMinutes)
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = AppTheme.accent),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text("Сохранить", color = Color.White)
+                        Text("Сохранить", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 }
             }

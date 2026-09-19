@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.project1.data.repository.NumberSettingsManager
+import com.example.project1.ui.components.PrimaryGradientButton
 import com.example.project1.ui.theme.AppTheme
 import kotlinx.coroutines.delay
 
@@ -130,13 +131,13 @@ fun NumberGuessCaptchaDialog(
                         Text("Отмена", color = Color.White.copy(alpha = if (isFailed) 0.2f else 0.6f))
                     }
 
-                    Button(
+                    PrimaryGradientButton(
                         onClick = {
                             val enteredValue = userInput.toIntOrNull()
 
                             if (enteredValue == null) {
                                 errorMessage = "Введите корректное целое число!"
-                                return@Button
+                                return@PrimaryGradientButton
                             }
 
                             if (enteredValue == targetItem.value) {
@@ -147,11 +148,11 @@ fun NumberGuessCaptchaDialog(
                             }
                         },
                         enabled = !isFailed,
-                        colors = ButtonDefaults.buttonColors(containerColor = AppTheme.accent),
                         shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text("Проверить", color = Color.White)
+                        Text("Проверить", color = Color.White, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }

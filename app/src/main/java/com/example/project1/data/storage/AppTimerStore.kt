@@ -51,24 +51,33 @@ object AppTimerStore {
     fun hasLimit(packageName: String): Boolean = limits.containsKey(packageName)
 
     fun markExhausted(packageName: String) {
+        checkDailyReset()
         _exhaustedToday.add(packageName)
         appContext?.let { saveDailyState(it) }
     }
 
     fun clearExhausted(packageName: String) {
+        checkDailyReset()
         _exhaustedToday.remove(packageName)
         _warnedToday.remove(packageName)
         appContext?.let { saveDailyState(it) }
     }
 
-    fun isExhausted(packageName: String): Boolean = _exhaustedToday.contains(packageName)
+    fun isExhausted(packageName: String): Boolean {
+        checkDailyReset()
+        return _exhaustedToday.contains(packageName)
+    }
 
     fun markWarned(packageName: String) {
+        checkDailyReset()
         _warnedToday.add(packageName)
         appContext?.let { saveDailyState(it) }
     }
 
-    fun isWarned(packageName: String): Boolean = _warnedToday.contains(packageName)
+    fun isWarned(packageName: String): Boolean {
+        checkDailyReset()
+        return _warnedToday.contains(packageName)
+    }
 
     private const val KEY_SHORTS_TIME = "shorts_time_spent_seconds"
     private const val KEY_SHORTS_DAY = "shorts_day_key"
@@ -115,12 +124,21 @@ object AppTimerStore {
     }
 
 
-    // ─── Приватные методы ─────────────────────────────────────────────────────
+    // ─── Методы проверки смены дня ─────────────────────────────────────────────
+
+    private var currentDayKey: String? = null
+
+    fun checkDailyReset(context: Context? = null) {
+        val ctx = context ?: appContext ?: return
+        val todayKey = getTodayKey()
+        if (currentDayKey != todayKey) {
+            loadDailyState(ctx)
+        }
+    }
 
     fun getTodayKey(): String {
         val cal = Calendar.getInstance(TimeZone.getTimeZone("GMT+3"))
         cal.timeInMillis = System.currentTimeMillis()
-        if (cal.get(Calendar.HOUR_OF_DAY) < 3) cal.add(Calendar.DAY_OF_MONTH, -1)
         return "${cal.get(Calendar.YEAR)}-${cal.get(Calendar.MONTH)}-${cal.get(Calendar.DAY_OF_MONTH)}"
     }
 
@@ -128,6 +146,7 @@ object AppTimerStore {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val savedDay = prefs.getString(KEY_EXHAUSTED_DAY, null)
         val todayKey = getTodayKey()
+        currentDayKey = todayKey
 
         _exhaustedToday.clear()
         _warnedToday.clear()
@@ -141,16 +160,25 @@ object AppTimerStore {
                 val wArr = org.json.JSONArray(prefs.getString(KEY_WARNED, "[]"))
                 for (i in 0 until wArr.length()) _warnedToday.add(wArr.getString(i))
             } catch (_: Exception) {}
+        } else {
+            // Новый день наступил! Сбрасываем сохраненные исчерпанные пакеты и предупреждения
+            prefs.edit()
+                .putString(KEY_EXHAUSTED, "[]")
+                .putString(KEY_WARNED, "[]")
+                .putString(KEY_EXHAUSTED_DAY, todayKey)
+                .apply()
         }
     }
 
     private fun saveDailyState(context: Context) {
         val exArr = org.json.JSONArray().also { arr -> _exhaustedToday.forEach { arr.put(it) } }
         val wArr = org.json.JSONArray().also { arr -> _warnedToday.forEach { arr.put(it) } }
+        val todayKey = getTodayKey()
+        currentDayKey = todayKey
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
             .putString(KEY_EXHAUSTED, exArr.toString())
             .putString(KEY_WARNED, wArr.toString())
-            .putString(KEY_EXHAUSTED_DAY, getTodayKey())
+            .putString(KEY_EXHAUSTED_DAY, todayKey)
             .apply()
     }
 

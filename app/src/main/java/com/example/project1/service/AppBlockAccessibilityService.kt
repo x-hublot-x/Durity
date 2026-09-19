@@ -45,10 +45,6 @@ class AppBlockAccessibilityService : AccessibilityService() {
 
     private val blockCooldowns = mutableMapOf<String, Long>()
 
-    // Время когда приложение стало foreground в текущей сессии (только в памяти)
-    // packageName -> timestamp открытия
-    private val sessionStartTimes = mutableMapOf<String, Long>()
-
     @Volatile private var currentForegroundPackage: String? = null
     @Volatile private var isRecentsOpen = false
 
@@ -77,6 +73,9 @@ class AppBlockAccessibilityService : AccessibilityService() {
     private var windowManager: WindowManager? = null
     private var overlayView: android.view.View? = null
     private var lastOverlayTime = 0L
+
+    @Volatile private var isScreenOn = true
+    private var screenReceiver: android.content.BroadcastReceiver? = null
 
     companion object {
         private const val TAG = "BLOCK"
@@ -135,51 +134,66 @@ class AppBlockAccessibilityService : AccessibilityService() {
 
     private val shortVideosTicker = object : Runnable {
         override fun run() {
+            if (!isScreenOn) return
+
             val todayKey = AppTimerStore.getTodayKey()
             if (todayKey != currentTrackingDay) {
                 currentTrackingDay = todayKey
+                AppTimerStore.checkDailyReset(applicationContext)
                 shortsTimeSpentSeconds = 0L
                 reelsTimeSpentSeconds = 0L
                 vkClipsTimeSpentSeconds = 0L
                 twitchClipsTimeSpentSeconds = 0L
+                isExitingShorts = false
+                isExitingReels = false
+                isExitingVkClips = false
+                isExitingTwitchClips = false
                 AppTimerStore.saveShortVideoSpentSeconds(YOUTUBE_SHORTS_PACKAGE, 0L)
                 AppTimerStore.saveShortVideoSpentSeconds(INSTAGRAM_REELS_PACKAGE, 0L)
                 AppTimerStore.saveShortVideoSpentSeconds(VK_CLIPS_PACKAGE, 0L)
                 AppTimerStore.saveShortVideoSpentSeconds(TWITCH_CLIPS_PACKAGE, 0L)
             }
 
-            if (isYouTubeForeground && !isExitingShorts) {
-                bgHandler.post { try { checkYouTubeShortsState() } catch (_: Exception) {} }
-            }
-            if (isInstagramForeground && !isExitingReels) {
-                bgHandler.post { try { checkInstagramReelsState() } catch (_: Exception) {} }
-            }
-            if (isVkForeground && !isExitingVkClips) {
-                bgHandler.post { try { checkVkClipsState() } catch (_: Exception) {} }
-            }
-            if (isTwitchForeground && !isExitingTwitchClips) {
-                bgHandler.post { try { checkTwitchClipsState() } catch (_: Exception) {} }
+            val hasAnyShortForeground = isYouTubeForeground || isInstagramForeground || isVkForeground || isTwitchForeground
+            val hasAnyShortActive = isInsideShorts || isInsideReels || isInsideVkClips || isInsideTwitchClips
+
+            if (hasAnyShortForeground) {
+                if (isYouTubeForeground && !isExitingShorts) {
+                    bgHandler.post { try { checkYouTubeShortsState() } catch (_: Exception) {} }
+                }
+                if (isInstagramForeground && !isExitingReels) {
+                    bgHandler.post { try { checkInstagramReelsState() } catch (_: Exception) {} }
+                }
+                if (isVkForeground && !isExitingVkClips) {
+                    bgHandler.post { try { checkVkClipsState() } catch (_: Exception) {} }
+                }
+                if (isTwitchForeground && !isExitingTwitchClips) {
+                    bgHandler.post { try { checkTwitchClipsState() } catch (_: Exception) {} }
+                }
             }
 
-            checkAndTick(YOUTUBE_SHORTS_PACKAGE, YOUTUBE_PACKAGE, isInsideShorts, isExitingShorts) {
-                shortsTimeSpentSeconds++
-                shortsTimeSpentSeconds
-            }
-            checkAndTick(INSTAGRAM_REELS_PACKAGE, INSTAGRAM_PACKAGE, isInsideReels, isExitingReels) {
-                reelsTimeSpentSeconds++
-                reelsTimeSpentSeconds
-            }
-            checkAndTick(VK_CLIPS_PACKAGE, currentVkPackage, isInsideVkClips, isExitingVkClips) {
-                vkClipsTimeSpentSeconds++
-                Log.d(TAG, "VK Clips TICK: $vkClipsTimeSpentSeconds seconds (inside=$isInsideVkClips)")
-                vkClipsTimeSpentSeconds
-            }
-            checkAndTick(TWITCH_CLIPS_PACKAGE, TWITCH_PACKAGE, isInsideTwitchClips, isExitingTwitchClips) {
-                twitchClipsTimeSpentSeconds++
-                twitchClipsTimeSpentSeconds
+            if (hasAnyShortActive) {
+                checkAndTick(YOUTUBE_SHORTS_PACKAGE, YOUTUBE_PACKAGE, isInsideShorts, isExitingShorts) {
+                    shortsTimeSpentSeconds++
+                    shortsTimeSpentSeconds
+                }
+                checkAndTick(INSTAGRAM_REELS_PACKAGE, INSTAGRAM_PACKAGE, isInsideReels, isExitingReels) {
+                    reelsTimeSpentSeconds++
+                    reelsTimeSpentSeconds
+                }
+                checkAndTick(VK_CLIPS_PACKAGE, currentVkPackage, isInsideVkClips, isExitingVkClips) {
+                    vkClipsTimeSpentSeconds++
+                    Log.d(TAG, "VK Clips TICK: $vkClipsTimeSpentSeconds seconds (inside=$isInsideVkClips)")
+                    vkClipsTimeSpentSeconds
+                }
+                checkAndTick(TWITCH_CLIPS_PACKAGE, TWITCH_PACKAGE, isInsideTwitchClips, isExitingTwitchClips) {
+                    twitchClipsTimeSpentSeconds++
+                    twitchClipsTimeSpentSeconds
+                }
             }
 
-            mainHandler.postDelayed(this, 1000)
+            val nextDelay = if (hasAnyShortForeground || hasAnyShortActive) 1000L else 2500L
+            mainHandler.postDelayed(this, nextDelay)
         }
     }
 
@@ -208,6 +222,22 @@ class AppBlockAccessibilityService : AccessibilityService() {
 
     private val blockTicker = object : Runnable {
         override fun run() {
+            if (!isScreenOn) return
+
+            val pkg = currentForegroundPackage
+            if (pkg == null || pkg == applicationContext.packageName || isSystemPackage(pkg)) {
+                mainHandler.postDelayed(this, 2500L)
+                return
+            }
+
+            val hasTimer = AppTimerStore.hasLimit(pkg)
+            val isExhausted = AppTimerStore.isExhausted(pkg)
+
+            if (!hasTimer && !isExhausted) {
+                mainHandler.postDelayed(this, 2500L)
+                return
+            }
+
             bgHandler.post {
                 try {
                     if (isRecentsOpen) {
@@ -216,14 +246,10 @@ class AppBlockAccessibilityService : AccessibilityService() {
                         else return@post
                     }
 
-                    val pkg = currentForegroundPackage ?: return@post
-                    if (pkg == applicationContext.packageName) return@post
-                    if (isSystemPackage(pkg)) return@post
-
                     val now = System.currentTimeMillis()
                     if (now < (blockCooldowns[pkg] ?: 0L)) return@post
 
-                    if (AppTimerStore.isExhausted(pkg)) {
+                    if (isExhausted) {
                         mainHandler.post { doBlock(pkg) }
                         return@post
                     }
@@ -235,11 +261,42 @@ class AppBlockAccessibilityService : AccessibilityService() {
         }
     }
 
+    private fun registerScreenReceiver() {
+        if (screenReceiver != null) return
+        screenReceiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                when (intent?.action) {
+                    Intent.ACTION_SCREEN_OFF -> {
+                        isScreenOn = false
+                        currentForegroundPackage = null
+                        mainHandler.removeCallbacks(shortVideosTicker)
+                        mainHandler.removeCallbacks(blockTicker)
+                        saveActiveShortVideoSeconds()
+                    }
+                    Intent.ACTION_SCREEN_ON, Intent.ACTION_USER_PRESENT -> {
+                        isScreenOn = true
+                        mainHandler.removeCallbacks(shortVideosTicker)
+                        mainHandler.removeCallbacks(blockTicker)
+                        mainHandler.post(shortVideosTicker)
+                        mainHandler.post(blockTicker)
+                    }
+                }
+            }
+        }
+        val filter = android.content.IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_OFF)
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_USER_PRESENT)
+        }
+        registerReceiver(screenReceiver, filter)
+    }
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         AppTimerStore.init(applicationContext)
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         createNotificationChannel()
+        registerScreenReceiver()
 
         serviceInfo = AccessibilityServiceInfo().apply {
             eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or AccessibilityEvent.TYPE_WINDOWS_CHANGED
@@ -285,14 +342,11 @@ class AppBlockAccessibilityService : AccessibilityService() {
             return
         }
 
-        // Приложение сменилось — фиксируем время начала сессии
+        // Приложение сменилось
         if (packageName != currentForegroundPackage) {
             saveActiveShortVideoSeconds()
             resetForegroundShortVideoFlags()
             currentForegroundPackage = packageName
-            if (!sessionStartTimes.containsKey(packageName)) {
-                sessionStartTimes[packageName] = now
-            }
         }
 
         when (packageName) {
@@ -663,22 +717,7 @@ class AppBlockAccessibilityService : AccessibilityService() {
 
 
 
-    // ─── Подсчёт времени: UsageStats + текущая сессия из памяти ─────────────
-
-    private fun getTotalUsedMs(packageName: String, startTime: Long, now: Long): Long {
-        // 1. Историческое время из UsageStats (надёжно, но с задержкой ~30-60 сек)
-        val historicalMs = getUsageViaEvents(packageName, startTime, now)
-
-        // 2. Текущая сессия из памяти сервиса (мгновенно, без задержки API)
-        val sessionStart = sessionStartTimes[packageName]
-        val currentSessionMs = if (sessionStart != null && sessionStart >= startTime) {
-            now - sessionStart
-        } else 0L
-
-        // Берём максимум: UsageStats иногда уже включает текущую сессию,
-        // а иногда нет — берём большее значение чтобы не занижать
-        return maxOf(historicalMs, currentSessionMs)
-    }
+    // ─── Подсчёт времени и проверка лимитов ─────────────────────────────────
 
     private fun checkAndBlockOrWarnApp(packageName: String, now: Long) {
         val timerData = AppTimerStore.limits[packageName] ?: run {
@@ -691,8 +730,16 @@ class AppBlockAccessibilityService : AccessibilityService() {
         }
 
         val todayStart = getTodayStart()
-        val startTime = maxOf(todayStart, timerData.addedTimestamp)
-        val usedMs = getTotalUsedMs(packageName, startTime, now)
+        val startTime = if (timerData.addedTimestamp > todayStart) timerData.addedTimestamp else todayStart
+        val isFg = (currentForegroundPackage == packageName)
+
+        val usedMs = com.example.project1.util.getAppUsageMs(
+            context = applicationContext,
+            packageName = packageName,
+            startTime = startTime,
+            endTime = now,
+            isCurrentlyForeground = isFg
+        )
         val usedMinutes = (usedMs / 60_000L).toInt()
         val remainingMinutes = timerData.limitMinutes - usedMinutes
 
@@ -719,8 +766,6 @@ class AppBlockAccessibilityService : AccessibilityService() {
 
         blockCooldowns[packageName] = now + BLOCK_COOLDOWN_MS
         currentForegroundPackage = null
-        // Сбрасываем sessionStart чтобы не накапливать время пока заблокировано
-        sessionStartTimes.remove(packageName)
 
         performGlobalAction(GLOBAL_ACTION_HOME)
 
@@ -824,12 +869,12 @@ class AppBlockAccessibilityService : AccessibilityService() {
         }
 
         // Запуск через стандартный Launcher Intent родительского приложения
+        // Для YouTube НЕ используем Intent — FLAG_ACTIVITY_CLEAR_TOP сносит весь стек
+        // и выглядит как выкидывание из приложения. Достаточно BACK.
         try {
             val intent: Intent? = if (parentPackage == YOUTUBE_PACKAGE) {
-                Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com")).apply {
-                    setPackage(YOUTUBE_PACKAGE)
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                }
+                // Только BACK — без Intent (уже выполнен выше если clickedHomeTab==false)
+                null
             } else {
                 packageManager.getLaunchIntentForPackage(parentPackage)?.apply {
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -905,6 +950,13 @@ class AppBlockAccessibilityService : AccessibilityService() {
             .build()
 
         nm.notify(packageName.hashCode(), notif)
+
+        com.example.project1.data.storage.NotificationHistoryStorage.addNotification(
+            context = applicationContext,
+            title = "⏳ Лимит времени: $appName",
+            message = "Осталось $remainingMinutes мин. Скоро приложение будет заблокировано.",
+            type = "timer"
+        )
     }
 
     private fun createNotificationChannel() {
@@ -1022,44 +1074,15 @@ class AppBlockAccessibilityService : AccessibilityService() {
         }
     }
 
-    // ─── UsageStats (исторические данные) ────────────────────────────────────
-
-    private fun getUsageViaEvents(packageName: String, startTime: Long, endTime: Long): Long {
-        val usm = applicationContext.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
-        val events = usm.queryEvents(startTime, endTime)
-        val event = UsageEvents.Event()
-        var totalMs = 0L
-        var lastResumeTime = -1L
-
-        while (events.hasNextEvent()) {
-            events.getNextEvent(event)
-            if (event.packageName != packageName) continue
-            when (event.eventType) {
-                UsageEvents.Event.ACTIVITY_RESUMED -> {
-                    if (lastResumeTime >= 0) totalMs += event.timeStamp - lastResumeTime
-                    lastResumeTime = event.timeStamp
-                }
-                UsageEvents.Event.ACTIVITY_PAUSED,
-                UsageEvents.Event.ACTIVITY_STOPPED -> {
-                    if (lastResumeTime >= 0) {
-                        totalMs += event.timeStamp - lastResumeTime
-                        lastResumeTime = -1L
-                    }
-                }
-            }
-        }
-        if (lastResumeTime >= 0) totalMs += endTime - lastResumeTime
-        return totalMs
-    }
-
     // ─── Утилиты ─────────────────────────────────────────────────────────────
 
     private fun getTodayStart(): Long {
         val cal = Calendar.getInstance(TimeZone.getTimeZone("GMT+3"))
         cal.timeInMillis = System.currentTimeMillis()
-        if (cal.get(Calendar.HOUR_OF_DAY) < 3) cal.add(Calendar.DAY_OF_MONTH, -1)
-        cal.set(Calendar.HOUR_OF_DAY, 3); cal.set(Calendar.MINUTE, 0)
-        cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
+        cal.set(Calendar.HOUR_OF_DAY, 0)
+        cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0)
+        cal.set(Calendar.MILLISECOND, 0)
         return cal.timeInMillis
     }
 
@@ -1090,6 +1113,10 @@ class AppBlockAccessibilityService : AccessibilityService() {
     override fun onInterrupt() {}
 
     override fun onDestroy() {
+        if (screenReceiver != null) {
+            try { unregisterReceiver(screenReceiver) } catch (_: Exception) {}
+            screenReceiver = null
+        }
         mainHandler.removeCallbacks(shortVideosTicker)
         mainHandler.removeCallbacks(blockTicker)
         bgHandler.removeCallbacksAndMessages(null)

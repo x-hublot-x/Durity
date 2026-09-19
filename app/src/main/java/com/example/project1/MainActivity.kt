@@ -18,6 +18,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.*
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
@@ -44,9 +45,12 @@ import com.example.project1.data.model.UNLOCK_BONUS_MINUTES
 import com.example.project1.data.storage.AiTestManager
 import com.example.project1.data.storage.AppTimerStore
 import com.example.project1.service.AppBlockAccessibilityService
+import com.example.project1.data.storage.DailySummaryData
+import com.example.project1.data.storage.DailySummaryStorage
 import com.example.project1.ui.components.GlassBottomNavigationBar
 import com.example.project1.ui.screens.chat.ChatScreen
 import com.example.project1.ui.screens.daily.DailyTaskScreen
+import com.example.project1.ui.screens.home.DailySummaryScreen
 import com.example.project1.ui.screens.home.HomeScreen
 import com.example.project1.ui.screens.personality.AiPersonalityTestDialog
 import com.example.project1.ui.screens.settings.SettingsScreen
@@ -59,11 +63,21 @@ import com.example.project1.ui.theme.AppTheme
 import com.example.project1.ui.theme.Project1Theme
 import com.example.project1.ui.theme.ThemeManager
 import com.example.project1.util.IconCache
+import com.example.project1.util.VibrationUtil
 import com.example.project1.util.getAppUsageMinutesThisWeek
-import com.example.project1.util.shortsLogoDrawable
 import com.example.project1.util.reelsLogoDrawable
-import com.example.project1.util.vkClipsLogoDrawable
+import com.example.project1.util.shortsLogoDrawable
 import com.example.project1.util.twitchClipsLogoDrawable
+import com.example.project1.util.vkClipsLogoDrawable
+import com.example.project1.data.model.BlitzConfig
+import com.example.project1.data.model.BlitzSessionState
+import com.example.project1.data.repository.MathBlitzRepository
+import com.example.project1.data.storage.DailyTaskStorage
+import com.example.project1.data.storage.MathBlitzStorage
+import com.example.project1.service.DailySummaryManager
+import com.example.project1.service.MathBlitzNotificationManager
+import com.example.project1.ui.screens.blitz.MathBlitzScreen
+import com.example.project1.ui.screens.blitz.MathBlitzSetupScreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -71,8 +85,29 @@ import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
 
+    companion object {
+        const val EXTRA_OPEN_DAILY_SUMMARY = "EXTRA_OPEN_DAILY_SUMMARY"
+        val openBlitzRequested = mutableStateOf(false)
+        val openDailySummaryRequested = mutableStateOf(false)
+    }
+
+    private val requestNotificationPermissionLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { _ -> }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (intent?.getBooleanExtra(MathBlitzNotificationManager.EXTRA_OPEN_BLITZ, false) == true) {
+            openBlitzRequested.value = true
+        }
+        if (intent?.getBooleanExtra(EXTRA_OPEN_DAILY_SUMMARY, false) == true) {
+            openDailySummaryRequested.value = true
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (!MathBlitzNotificationManager.hasNotificationPermission(this)) {
+                requestNotificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
         AppTimerStore.init(this)
         AiTestManager.init(this)
         ThemeManager.init(this)
@@ -179,9 +214,40 @@ class MainActivity : ComponentActivity() {
         return false
     }
 
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent?.getBooleanExtra(MathBlitzNotificationManager.EXTRA_OPEN_BLITZ, false) == true) {
+            openBlitzRequested.value = true
+        }
+        if (intent?.getBooleanExtra(EXTRA_OPEN_DAILY_SUMMARY, false) == true) {
+            openDailySummaryRequested.value = true
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        val session = MathBlitzStorage.getActiveSession(this)
+        if (session != null && !session.isFinished && session.deadlineTime > System.currentTimeMillis()) {
+            MathBlitzNotificationManager.showActiveBlitzNotification(this, session)
+        }
+    }
+
     override fun onStop() {
         super.onStop()
         ThemeManager.applyPendingAppIcon(applicationContext)
+        val session = MathBlitzStorage.getActiveSession(this)
+        if (session != null && !session.isFinished && session.deadlineTime > System.currentTimeMillis()) {
+            MathBlitzNotificationManager.showActiveBlitzNotification(this, session)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        val session = MathBlitzStorage.getActiveSession(this)
+        if (session != null && (session.isFinished || session.deadlineTime <= System.currentTimeMillis())) {
+            MathBlitzNotificationManager.cancelActiveNotification(this)
+        }
     }
 }
 
@@ -339,8 +405,37 @@ fun MainScreen() {
     var isBottomBarStyleOpen by remember { mutableStateOf(false) }
     var showAiTestDialogFromHome by remember { mutableStateOf(false) }
     var pendingChatSession by remember { mutableStateOf<ChatSession?>(null) }
+    var showBlitzSetupScreen by remember { mutableStateOf(false) }
+    var activeBlitzSession by remember { mutableStateOf<BlitzSessionState?>(null) }
+    var showBlitzScreen by remember { mutableStateOf(false) }
+    var showDailySummary by remember { mutableStateOf(false) }
+    var isNotificationCenterOpen by remember { mutableStateOf(false) }
+    var isMathReferenceOpen by remember { mutableStateOf(false) }
+    var dailySummaryData by remember { mutableStateOf<DailySummaryData?>(DailySummaryStorage.getLatestSummary(context)) }
 
     val pageHistory = remember { mutableStateListOf(0) }
+
+    LaunchedEffect(MainActivity.openBlitzRequested.value) {
+        if (MainActivity.openBlitzRequested.value) {
+            val currentSession = MathBlitzStorage.getActiveSession(context)
+            if (currentSession != null && !currentSession.isFinished && currentSession.deadlineTime > System.currentTimeMillis()) {
+                activeBlitzSession = currentSession
+                showBlitzScreen = true
+                MathBlitzNotificationManager.cancelActiveNotification(context)
+            }
+            MainActivity.openBlitzRequested.value = false
+        }
+    }
+
+    LaunchedEffect(MainActivity.openDailySummaryRequested.value) {
+        if (MainActivity.openDailySummaryRequested.value) {
+            dailySummaryData = DailySummaryStorage.getLatestSummary(context)
+            if (dailySummaryData != null) {
+                showDailySummary = true
+            }
+            MainActivity.openDailySummaryRequested.value = false
+        }
+    }
 
     LaunchedEffect(pagerState.currentPage) {
         val page = pagerState.currentPage
@@ -349,7 +444,7 @@ fun MainScreen() {
         }
     }
 
-    BackHandler(enabled = showStatsDetails || (pagerState.currentPage != 0 && !isChatOpen && !showDailyTask && !isBottomBarStyleOpen)) {
+    BackHandler(enabled = !showBlitzScreen && !showBlitzSetupScreen && !showDailySummary && (showStatsDetails || (pagerState.currentPage != 0 && !isChatOpen && !showDailyTask && !isBottomBarStyleOpen))) {
         if (showStatsDetails) {
             showStatsDetails = false
             return@BackHandler
@@ -377,13 +472,30 @@ fun MainScreen() {
                 modifier = Modifier
                     .fillMaxSize()
                     .haze(hazeState),
-                userScrollEnabled = !isChatOpen && !showDailyTask && !showStatsDetails && !isBottomBarStyleOpen
+                userScrollEnabled = !isChatOpen && !showDailyTask && !showStatsDetails && !isBottomBarStyleOpen && !showBlitzScreen && !showBlitzSetupScreen && !showDailySummary && !isNotificationCenterOpen && !isMathReferenceOpen
             ) { page ->
                 when (page) {
                     0 -> HomeScreen(
                         onNavigateToDailyTask = { showDailyTask = true },
                         onShowTestDialog = { showAiTestDialogFromHome = true },
                         onNavigateToStats = { showStatsDetails = true },
+                        onOpenBlitz = {
+                            val currentSession = MathBlitzStorage.getActiveSession(context)
+                            if (currentSession != null && !currentSession.isFinished && currentSession.deadlineTime > System.currentTimeMillis()) {
+                                activeBlitzSession = currentSession
+                                showBlitzScreen = true
+                                MathBlitzNotificationManager.cancelActiveNotification(context)
+                            } else {
+                                showBlitzSetupScreen = true
+                            }
+                        },
+                        onOpenDailySummary = {
+                            coroutineScope.launch {
+                                val s = DailySummaryManager.checkAndGenerateDailySummary(context, BuildConfig.GEMINI_API_KEY)
+                                dailySummaryData = s ?: DailySummaryStorage.getLatestSummary(context)
+                                showDailySummary = true
+                            }
+                        },
                         appsWithTimers = installedApps.filter { it.timeLimitMinutes > 0 },
                         onNavigateToChat = { title: String, firstMsg: String, taskLatex: String ->
                             val newSession = ChatSession(
@@ -396,7 +508,35 @@ fun MainScreen() {
                             )
                             pendingChatSession = newSession
                             coroutineScope.launch { pagerState.animateScrollToPage(3) }
-                        }
+                        },
+                        onDiscussDailySummary = { summary ->
+                            val title = "Итоги дня (${summary.dateKey})"
+                            val firstMsg = """
+ИТОГИ ДНЯ (${summary.dateKey}):
+• Экранное время: ${summary.totalScreenMinutes} мин (скроллинг шортсов/клипов: ${summary.scrollingMinutes} мин)
+• Задача дня: ${if (summary.dailyTaskSolved) "Решена" else "Пропущена"}
+• Блиц-поединки: ${summary.blitzWins} побед, ${summary.blitzLosses} поражений
+• Изменение репутации: ${if (summary.ratingDelta >= 0) "+${summary.ratingDelta}" else "${summary.ratingDelta}"}
+${if (summary.coinsAwarded > 0) "• Бонусные монеты: +${summary.coinsAwarded}\n" else ""}
+РЕКОМЕНДАЦИЯ НАСТАВНИКА:
+${summary.aiRecommendation}
+
+Я готов обсудить ваши результаты дня, помочь поставить цели на завтра или разобрать любые вопросы! Что бы вы хотели улучшить или уточнить?
+                            """.trimIndent()
+
+                            val newSession = ChatSession(
+                                id = "summary_${System.currentTimeMillis()}",
+                                title = title,
+                                messages = listOf(
+                                    ChatMessage(text = firstMsg, isFromUser = false)
+                                )
+                            )
+                            pendingChatSession = newSession
+                            coroutineScope.launch { pagerState.animateScrollToPage(3) }
+                        },
+                        hazeState = hazeState,
+                        onNotificationCenterOpenChanged = { isNotificationCenterOpen = it },
+                        onMathReferenceOpenChanged = { isMathReferenceOpen = it }
                     )
                     1 -> TimersScreen(
                         appsWithTimers = installedApps.filter { it.timeLimitMinutes > 0 },
@@ -459,7 +599,7 @@ fun MainScreen() {
                     onNavigateToChat = { title: String, firstMsg: String, taskLatex: String ->
                         // Если firstMsg — готовая подсказка (отображается как сообщение бота),
                         // иначе — скрытый промт для AI (autoPrompt, бот генерирует сам)
-                        val newSession = if (firstMsg.startsWith("💡")) {
+                        val newSession = if (firstMsg.startsWith("**Подсказка") || firstMsg.startsWith("💡")) {
                             ChatSession(
                                 id = System.currentTimeMillis().toString(),
                                 title = title,
@@ -501,16 +641,138 @@ fun MainScreen() {
                 )
             }
 
+            // DailySummaryScreen — отдельная вкладка итогов дня
             AnimatedVisibility(
-                visible = !isChatOpen && !showDailyTask && !showStatsDetails && !isBottomBarStyleOpen,
+                visible = showDailySummary && dailySummaryData != null,
+                enter = slideInHorizontally(
+                    initialOffsetX = { it },
+                    animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing)
+                ) + fadeIn(animationSpec = tween(200)),
+                exit = slideOutHorizontally(
+                    targetOffsetX = { it },
+                    animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing)
+                ) + fadeOut(animationSpec = tween(200))
+            ) {
+                dailySummaryData?.let { summary ->
+                    DailySummaryScreen(
+                        summary = summary,
+                        onBack = { showDailySummary = false },
+                        onDiscussSummary = { s ->
+                            val title = "Итоги дня (${s.dateKey})"
+                            val firstMsg = """
+ИТОГИ ДНЯ (${s.dateKey}):
+• Экранное время: ${s.totalScreenMinutes} мин (шортсы/клипы: ${s.scrollingMinutes} мин)
+• Задача дня: ${if (s.dailyTaskSolved) "Решена" else "Пропущена"}
+• Блицы: ${s.blitzWins} побед, ${s.blitzLosses} поражений
+• Изменение репутации: ${if (s.ratingDelta >= 0) "+${s.ratingDelta}" else "${s.ratingDelta}"}
+${if (s.coinsAwarded > 0) "• Бонусные монеты: +${s.coinsAwarded}\n" else ""}
+СОВЕТ НАСТАВНИКА:
+${s.aiRecommendation}
+
+Я готов обсудить ваши результаты дня! Что бы вы хотели улучшить или уточнить?
+                            """.trimIndent()
+
+                            val newSession = ChatSession(
+                                id = "summary_${System.currentTimeMillis()}",
+                                title = title,
+                                messages = listOf(
+                                    ChatMessage(text = firstMsg, isFromUser = false)
+                                )
+                            )
+                            pendingChatSession = newSession
+                            showDailySummary = false
+                            coroutineScope.launch { pagerState.animateScrollToPage(3) }
+                        }
+                    )
+                }
+            }
+
+            // MathBlitzScreen — полноэкранный режим блица
+            AnimatedVisibility(
+                visible = showBlitzScreen && activeBlitzSession != null,
+                enter = slideInHorizontally(
+                    initialOffsetX = { it },
+                    animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing)
+                ) + fadeIn(animationSpec = tween(200)),
+                exit = slideOutHorizontally(
+                    targetOffsetX = { it },
+                    animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing)
+                ) + fadeOut(animationSpec = tween(200))
+            ) {
+                activeBlitzSession?.let { currentSession ->
+                    MathBlitzScreen(
+                        initialSession = currentSession,
+                        onClose = {
+                            showBlitzScreen = false
+                            val cur = MathBlitzStorage.getActiveSession(context)
+                            if (cur != null && !cur.isFinished && cur.deadlineTime > System.currentTimeMillis()) {
+                                MathBlitzNotificationManager.showActiveBlitzNotification(context, cur)
+                            }
+                        },
+                        onFinish = {
+                            showBlitzScreen = false
+                            activeBlitzSession = null
+                            MathBlitzNotificationManager.cancelActiveNotification(context)
+                            MathBlitzNotificationManager.cancelTimeoutAlarm(context)
+                        }
+                    )
+                }
+            }
+
+            // MathBlitzSetupScreen — полноценная страница настройки блица
+            AnimatedVisibility(
+                visible = showBlitzSetupScreen,
+                enter = slideInHorizontally(
+                    initialOffsetX = { it },
+                    animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing)
+                ) + fadeIn(animationSpec = tween(250)),
+                exit = slideOutHorizontally(
+                    targetOffsetX = { -it },
+                    animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing)
+                ) + fadeOut(animationSpec = tween(250))
+            ) {
+                MathBlitzSetupScreen(
+                    userCoins = DailyTaskStorage.getCoins(context),
+                    onBack = { showBlitzSetupScreen = false },
+                    onStartBlitz = { config, tasks ->
+                        coroutineScope.launch {
+                            DailyTaskStorage.addCoins(context, -config.betCoins)
+                            val now = System.currentTimeMillis()
+                            val deadline = now + config.durationMinutes * 60 * 1000L
+                            val potWin = MathBlitzRepository.calculatePotentialWin(
+                                config.betCoins, config.difficulty, config.durationMinutes, config.taskCount
+                            )
+                            val newSession = BlitzSessionState(
+                                id = "blitz_${now}",
+                                config = config,
+                                startTime = now,
+                                deadlineTime = deadline,
+                                potentialWinCoins = potWin,
+                                tasks = tasks,
+                                currentTaskIndex = 0,
+                                isFinished = false,
+                                isWon = false
+                            )
+                            MathBlitzStorage.saveActiveSession(context, newSession)
+                            MathBlitzNotificationManager.scheduleTimeoutAlarm(context, deadline, config.betCoins)
+                            activeBlitzSession = newSession
+                            showBlitzSetupScreen = false
+                            showBlitzScreen = true
+                        }
+                    }
+                )
+            }
+
+            AnimatedVisibility(
+                visible = !isChatOpen && !showDailyTask && !showStatsDetails && !isBottomBarStyleOpen && !showBlitzScreen && !showBlitzSetupScreen && !showDailySummary && !isNotificationCenterOpen && !isMathReferenceOpen,
                 enter = slideInVertically(
                     initialOffsetY = { it },
-                    animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing)
-                ) + fadeIn(animationSpec = tween(200)),
+                    animationSpec = tween(durationMillis = 120, easing = LinearOutSlowInEasing)
+                ) + fadeIn(animationSpec = tween(100)),
                 exit = slideOutVertically(
                     targetOffsetY = { it },
-                    animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)
-                ) + fadeOut(animationSpec = tween(150)),
+                    animationSpec = tween(durationMillis = 140, easing = FastOutSlowInEasing)
+                ) + fadeOut(animationSpec = tween(100)),
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 16.dp)

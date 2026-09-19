@@ -2,6 +2,7 @@ package com.example.project1.ui.screens.stats
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -16,6 +17,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
@@ -23,8 +25,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import com.example.project1.data.model.AppInfo
+import com.example.project1.ui.components.GradientText
 import com.example.project1.ui.theme.AppTheme
 import com.example.project1.util.formatMinutes
+
+import androidx.activity.compose.BackHandler
+import androidx.compose.ui.platform.LocalContext
+import com.example.project1.util.VibrationUtil
 
 @Composable
 fun StatsScreen(
@@ -33,6 +40,13 @@ fun StatsScreen(
 ) {
     val totalMinutes = appsWithTimers.sumOf { it.usedMinutesThisWeek }
     val colors = AppTheme.colors
+    val context = LocalContext.current
+
+    if (onBack != null) {
+        BackHandler {
+            onBack()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -50,7 +64,10 @@ fun StatsScreen(
         ) {
             if (onBack != null) {
                 IconButton(
-                    onClick = onBack,
+                    onClick = {
+                        VibrationUtil.vibrateTick(context)
+                        onBack()
+                    },
                     modifier = Modifier.size(40.dp)
                 ) {
                     Icon(
@@ -87,17 +104,16 @@ fun StatsScreen(
 
                 Spacer(modifier = Modifier.height(6.dp))
 
-                Text(
+                GradientText(
                     text = formatMinutes(totalMinutes),
                     fontSize = 32.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = colors.primary
+                    fontWeight = FontWeight.Bold
                 )
 
                 Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
-                    text = "Сброс статистики каждый день в 3:00 МСК",
+                    text = "Сброс статистики каждый день в 00:00 МСК",
                     fontSize = 11.sp,
                     color = colors.textTertiary
                 )
@@ -146,11 +162,18 @@ fun StatItemCard(app: AppInfo) {
         (app.usedMinutesThisWeek.toFloat() / app.timeLimitMinutes.toFloat()).coerceIn(0f, 1f)
     } else 0f
 
+    val isBlocked = progress >= 1f
+    val blockedGradient = Brush.horizontalGradient(listOf(Color(0xFF0071FF), Color(0xFF00D1FF)))
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .background(colors.surface)
+            .then(
+                if (isBlocked) Modifier.border(1.dp, blockedGradient, RoundedCornerShape(16.dp))
+                else Modifier
+            )
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -176,22 +199,29 @@ fun StatItemCard(app: AppInfo) {
                 )
                 Text(
                     text = "${formatMinutes(app.usedMinutesThisWeek)} / ${formatMinutes(app.timeLimitMinutes)}",
-                    color = colors.textSecondary,
-                    fontSize = 13.sp
+                    color = if (isBlocked) Color(0xFF00D1FF) else colors.textSecondary,
+                    fontSize = 13.sp,
+                    fontWeight = if (isBlocked) FontWeight.SemiBold else FontWeight.Normal
                 )
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            LinearProgressIndicator(
-                progress = { progress },
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(6.dp)
-                    .clip(CircleShape),
-                color = if (progress >= 1f) Color(0xFF80D8FF) else colors.primary,
-                trackColor = colors.surfaceElevated
-            )
+                    .clip(CircleShape)
+                    .background(colors.surfaceElevated)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(progress)
+                        .fillMaxHeight()
+                        .clip(CircleShape)
+                        .background(if (isBlocked) blockedGradient else colors.primaryBrush)
+                )
+            }
         }
     }
 }

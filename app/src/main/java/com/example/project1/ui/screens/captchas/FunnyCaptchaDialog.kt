@@ -9,6 +9,10 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,6 +27,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.project1.data.repository.FunnyCaptchaRepository
+import com.example.project1.ui.components.PrimaryGradientButton
 
 @Composable
 fun FunnyCaptchaDialog(
@@ -46,12 +51,23 @@ fun FunnyCaptchaDialog(
                 .padding(20.dp)
         ) {
 
-            Text(
-                "✓  Докажите, что вы не робот",
-                color = Color.White,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.CheckCircle,
+                    contentDescription = null,
+                    tint = Color(0xFF4285F4),
+                    modifier = Modifier.size(22.dp)
+                )
+                Text(
+                    "Докажите, что вы не робот",
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
 
             Text(
                 "reCAPTCHA, но для лентяев",
@@ -144,11 +160,7 @@ fun FunnyCaptchaDialog(
                                     .background(Color(0x444285F4))
                             )
 
-                            Text(
-                                "✓",
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp,
+                            Box(
                                 modifier = Modifier
                                     .align(Alignment.TopEnd)
                                     .padding(5.dp)
@@ -156,8 +168,16 @@ fun FunnyCaptchaDialog(
                                         Color(0xFF4285F4),
                                         RoundedCornerShape(4.dp)
                                     )
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
+                                    .padding(4.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Check,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -166,11 +186,22 @@ fun FunnyCaptchaDialog(
             if (error) {
                 Spacer(Modifier.height(8.dp))
 
-                Text(
-                    "❌ CAPTCHA решила, что вы робот.",
-                    color = Color(0xFFFF5252),
-                    fontSize = 13.sp
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.ErrorOutline,
+                        contentDescription = null,
+                        tint = Color(0xFFFF5252),
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        "CAPTCHA решила, что вы робот.",
+                        color = Color(0xFFFF5252),
+                        fontSize = 13.sp
+                    )
+                }
             }
 
             Spacer(Modifier.height(14.dp))
@@ -183,7 +214,7 @@ fun FunnyCaptchaDialog(
                     Text("Отмена", color = Color.White.copy(alpha = .6f))
                 }
 
-                Button(
+                PrimaryGradientButton(
                     onClick = {
                         if (selected == captcha.correctIndexes) {
                             onSolved()
@@ -191,11 +222,10 @@ fun FunnyCaptchaDialog(
                             error = true
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF4285F4)
-                    )
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
                 ) {
-                    Text("Я не робот")
+                    Text("Я не робот", color = Color.White, fontWeight = FontWeight.SemiBold)
                 }
             }
         }

@@ -26,9 +26,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.project1.R
 import com.example.project1.ui.theme.AccentTheme
 import com.example.project1.ui.theme.AppTheme
 import com.example.project1.ui.theme.BottomBarStyle
@@ -133,15 +135,72 @@ fun SettingsScreen(
                             color = colors.textSecondary
                         )
 
-                        Spacer(modifier = Modifier.height(20.dp))
+                        Spacer(modifier = Modifier.height(18.dp))
 
-                        // Ряд иконок цветов
+                        // Заголовок Линии 1
+                        Text(
+                            text = "Классические",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = colors.textSecondary.copy(alpha = 0.8f)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            AccentTheme.entries.forEach { accent ->
+                            AccentTheme.row1.forEach { accent ->
+                                val isSelected = currentAccent == accent
+                                ColorCircleItem(
+                                    accent = accent,
+                                    isSelected = isSelected,
+                                    onClick = { ThemeManager.setAccent(context, accent) }
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // Заголовок Линии 2
+                        Text(
+                            text = "Альтернативные",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = colors.textSecondary.copy(alpha = 0.8f)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            AccentTheme.row2.forEach { accent ->
+                                val isSelected = currentAccent == accent
+                                ColorCircleItem(
+                                    accent = accent,
+                                    isSelected = isSelected,
+                                    onClick = { ThemeManager.setAccent(context, accent) }
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // Заголовок Линии 3
+                        Text(
+                            text = "Градиентные дуэты",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = colors.textSecondary.copy(alpha = 0.8f)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            AccentTheme.row3.forEach { accent ->
                                 val isSelected = currentAccent == accent
                                 ColorCircleItem(
                                     accent = accent,
@@ -253,6 +312,22 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(20.dp))
 
                 // ── Предпросмотр интерфейса ───────────────────────────────────
+                val animPrimary by animateColorAsState(
+                    targetValue = colors.primary,
+                    animationSpec = tween(350),
+                    label = "previewPrimary"
+                )
+                val animSecondary by animateColorAsState(
+                    targetValue = colors.secondary,
+                    animationSpec = tween(350),
+                    label = "previewSecondary"
+                )
+                val animSubtle by animateColorAsState(
+                    targetValue = colors.primarySubtle,
+                    animationSpec = tween(350),
+                    label = "previewSubtle"
+                )
+
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(22.dp),
@@ -271,49 +346,138 @@ fun SettingsScreen(
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "Так выглядят элементы в выбранном цвете",
+                            text = "Так выглядят элементы и иконка в выбранном цвете",
                             fontSize = 13.sp,
                             color = colors.textSecondary
                         )
 
                         Spacer(modifier = Modifier.height(18.dp))
 
-                        // Пример основной кнопки
-                        Button(
-                            onClick = { },
-                            shape = RoundedCornerShape(14.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = colors.primary),
-                            modifier = Modifier.fillMaxWidth()
+                        // ── Блок предпросмотра иконки приложения ─────────────
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(colors.surfaceElevated.copy(alpha = 0.7f))
+                                .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(18.dp))
+                                .padding(14.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                // Реальная иконка приложения
+                                Box(
+                                    modifier = Modifier
+                                        .size(62.dp)
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .background(
+                                            Brush.linearGradient(
+                                                listOf(animPrimary, animSecondary)
+                                            )
+                                        )
+                                        .border(
+                                            1.dp,
+                                            Brush.verticalGradient(
+                                                listOf(
+                                                    Color.White.copy(alpha = 0.35f),
+                                                    Color.White.copy(alpha = 0.08f)
+                                                )
+                                            ),
+                                            RoundedCornerShape(16.dp)
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Image(
+                                        painter = painterResource(id = R.mipmap.ic_launcher_adaptive_fore),
+                                        contentDescription = "Иконка приложения",
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Иконка приложения",
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = colors.textPrimary
+                                    )
+                                    Spacer(modifier = Modifier.height(3.dp))
+                                    Text(
+                                        text = "Автоматически изменится на рабочем столе при выходе",
+                                        fontSize = 12.sp,
+                                        lineHeight = 16.sp,
+                                        color = colors.textSecondary
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Пример основной кнопки (с плавным градиентом)
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(50.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(
+                                    Brush.horizontalGradient(
+                                        listOf(animPrimary, animSecondary)
+                                    )
+                                ),
+                            contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = "Пример основной кнопки",
                                 color = Color.White,
-                                fontWeight = FontWeight.SemiBold
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 15.sp
                             )
                         }
 
                         Spacer(modifier = Modifier.height(14.dp))
 
-                        // Пример прогресс-бара
-                        LinearProgressIndicator(
-                            progress = { 0.68f },
+                        // Пример прогресс-бара (с плавным градиентом)
+                        Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(8.dp)
-                                .clip(CircleShape),
-                            color = colors.primary,
-                            trackColor = colors.surfaceElevated
-                        )
+                                .clip(CircleShape)
+                                .background(colors.surfaceElevated)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(0.68f)
+                                    .fillMaxHeight()
+                                    .clip(CircleShape)
+                                    .background(
+                                        Brush.horizontalGradient(
+                                            listOf(animPrimary, animSecondary)
+                                        )
+                                    )
+                            )
+                        }
 
                         Spacer(modifier = Modifier.height(14.dp))
 
-                        // Пример карточки с обводкой
+                        // Пример карточки с градиентным текстом и бейджем
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(14.dp))
-                                .background(colors.primarySubtle)
-                                .border(1.dp, colors.primary.copy(alpha = 0.5f), RoundedCornerShape(14.dp))
+                                .background(animSubtle)
+                                .border(
+                                    1.2.dp,
+                                    Brush.horizontalGradient(
+                                        listOf(
+                                            animPrimary.copy(alpha = 0.5f),
+                                            animSecondary.copy(alpha = 0.5f)
+                                        )
+                                    ),
+                                    RoundedCornerShape(14.dp)
+                                )
                                 .padding(14.dp)
                         ) {
                             Row(
@@ -322,16 +486,24 @@ fun SettingsScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text(
-                                    text = "Акцентная плашка",
-                                    color = colors.primary,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Medium
+                                    text = "Акцентный градиентный стиль",
+                                    style = TextStyle(
+                                        brush = Brush.horizontalGradient(
+                                            listOf(animPrimary, animSecondary)
+                                        ),
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
                                 )
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(colors.primary)
-                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                        .background(
+                                            Brush.horizontalGradient(
+                                                listOf(animPrimary, animSecondary)
+                                            )
+                                        )
+                                        .padding(horizontal = 10.dp, vertical = 4.dp)
                                 ) {
                                     Text(
                                         text = "Активно",

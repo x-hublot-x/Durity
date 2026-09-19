@@ -161,20 +161,23 @@ fun KatexView(
     val colorHex = String.format("#%06X", 0xFFFFFF and textColor.toArgb())
 
     val sanitizedLatex = latex
-        // Восстанавливаем \to, если из-за JSON-парсинга \t превратилась в табуляцию
-        .replace("\to", "\\to ")
+        // 1. Сначала эскейпим все обратные слеши для JS-строки
         .replace("\\", "\\\\")
+        // 2. Восстанавливаем \to, если из-за JSON-парсинга \t превратилась в табуляцию
+        //    (после шага 1 таб остаётся табом, ищем его перед "o")
+        .replace("\to", "\\\\to ")
         .replace("'", "\\'")
         .replace("\r", "")
         .replace("\n", " ")
 
     val displayMode = isBlock.toString()
-    val mathMargin = if (isBlock) "0 auto" else "0"
 
     val htmlContent = """<!DOCTYPE html>
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<link rel="stylesheet" href="file:///android_asset/katex/katex.min.css">
+<script src="file:///android_asset/katex/katex.min.js"></script>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 html, body {
@@ -188,22 +191,27 @@ html, body {
   white-space: nowrap;
   -webkit-overflow-scrolling: touch;
   width: 100%;
-  min-width: 100%;
+  text-align: center;
 }
 #math-wrapper {
   display: inline-flex;
+  justify-content: center;
+  align-items: center;
   min-width: 100%;
-  padding: 4px 6px;
+  width: max-content;
+  padding: 4px 8px;
   box-sizing: border-box;
 }
 #math {
-  margin: $mathMargin;
+  margin: 0 auto;
   display: inline-block;
+  text-align: center;
 }
 .katex-display {
   margin: 0 !important;
+  text-align: center;
 }
-.katex { font-size: 1em; }
+.katex { font-size: 1.1em; }
 </style>
 </head>
 <body>
@@ -214,28 +222,24 @@ html, body {
 (function() {
   var latex = '$sanitizedLatex';
   var displayMode = $displayMode;
-
   function render() {
     var el = document.getElementById('math');
     try {
-      katex.render(latex, el, { throwOnError: false, displayMode: displayMode });
+      if (window.katex) {
+        katex.render(latex, el, { throwOnError: false, displayMode: displayMode });
+      } else {
+        el.innerText = latex;
+      }
     } catch(e) {
       el.innerText = latex;
     }
   }
-
-  var link = document.createElement('link');
-  link.rel = 'stylesheet';
-  link.href = 'file:///android_asset/katex/katex.min.css';
-  document.head.appendChild(link);
-
-  var script = document.createElement('script');
-  script.src = 'file:///android_asset/katex/katex.min.js';
-  script.onload = render;
-  script.onerror = function() {
-    document.getElementById('math').innerText = latex;
-  };
-  document.head.appendChild(script);
+  if (window.katex) {
+    render();
+  } else {
+    window.addEventListener('DOMContentLoaded', render);
+    setTimeout(render, 80);
+  }
 })();
 </script>
 </body>
@@ -260,37 +264,33 @@ html, body {
                 isVerticalScrollBarEnabled = false
                 scrollBarStyle = View.SCROLLBARS_INSIDE_OVERLAY
 
-                val touchSlop = ViewConfiguration.get(context).scaledTouchSlop.toFloat()
-                var startX = 0f
-                var startY = 0f
-                var isHorizontalDrag = false
+                var activePointerId = MotionEvent.INVALID_POINTER_ID
                 setOnTouchListener { v, event ->
                     when (event.actionMasked) {
                         MotionEvent.ACTION_DOWN -> {
-                            startX = event.x
-                            startY = event.y
-                            isHorizontalDrag = false
-                            v.parent?.requestDisallowInterceptTouchEvent(false)
+                            activePointerId = event.getPointerId(0)
+                            v.parent?.requestDisallowInterceptTouchEvent(true)
+                        }
+                        MotionEvent.ACTION_POINTER_DOWN -> {
+                            val actionIndex = event.actionIndex
+                            activePointerId = event.getPointerId(actionIndex)
+                            v.parent?.requestDisallowInterceptTouchEvent(true)
                         }
                         MotionEvent.ACTION_MOVE -> {
-                            val dx = kotlin.math.abs(event.x - startX)
-                            val dy = kotlin.math.abs(event.y - startY)
-                            if (!isHorizontalDrag) {
-                                val canScrollH = (event.x < startX && v.canScrollHorizontally(1)) ||
-                                                 (event.x > startX && v.canScrollHorizontally(-1))
-                                if (dx > dy && dx > touchSlop && canScrollH) {
-                                    isHorizontalDrag = true
-                                    v.parent?.requestDisallowInterceptTouchEvent(true)
-                                } else if (dy > dx && dy > touchSlop) {
-                                    v.parent?.requestDisallowInterceptTouchEvent(false)
+                            v.parent?.requestDisallowInterceptTouchEvent(true)
+                        }
+                        MotionEvent.ACTION_POINTER_UP -> {
+                            val actionIndex = event.actionIndex
+                            if (event.getPointerId(actionIndex) == activePointerId) {
+                                val newIndex = if (actionIndex == 0) 1 else 0
+                                if (newIndex < event.pointerCount) {
+                                    activePointerId = event.getPointerId(newIndex)
                                 }
-                            } else {
-                                v.parent?.requestDisallowInterceptTouchEvent(true)
                             }
                         }
                         MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                             v.parent?.requestDisallowInterceptTouchEvent(false)
-                            isHorizontalDrag = false
+                            activePointerId = MotionEvent.INVALID_POINTER_ID
                         }
                     }
                     false
@@ -331,9 +331,10 @@ fun KatexViewLeft(
     val colorHex = String.format("#%06X", 0xFFFFFF and textColor.toArgb())
 
     val sanitizedLatex = latex
-        // Восстанавливаем \to, если из-за JSON-парсинга \t превратилась в табуляцию
-        .replace("\to", "\\to ")
+        // 1. Сначала эскейпим все обратные слеши для JS-строки
         .replace("\\", "\\\\")
+        // 2. Восстанавливаем \to, если из-за JSON-парсинга \t превратилась в табуляцию
+        .replace("\to", "\\\\to ")
         .replace("'", "\\'")
         .replace("\r", "")
         .replace("\n", " ")
@@ -620,9 +621,7 @@ fun TaskLatexView(latex: String) {
 fun TaskMathBlockView(latex: String, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xFF141420))
-            .padding(vertical = 12.dp, horizontal = 8.dp),
+            .padding(vertical = 4.dp, horizontal = 4.dp),
         contentAlignment = Alignment.Center
     ) {
         KatexView(latex = latex, textSizeSp = 24, isBlock = true)

@@ -27,12 +27,16 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.rounded.CalendarToday
+import androidx.compose.material.icons.rounded.MenuBook
+import androidx.compose.material.icons.rounded.Smartphone
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Canvas
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -334,20 +338,19 @@ fun ChatListScreen(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(bottom = 100.dp, end = 16.dp)
+                    .shadow(8.dp, CircleShape)
+                    .size(56.dp)
+                    .clip(CircleShape)
+                    .background(AppTheme.colors.primaryBrush)
+                    .clickable { onCreateSession() },
+                contentAlignment = Alignment.Center
             ) {
-                FloatingActionButton(
-                    onClick = onCreateSession,
-                    containerColor = AppTheme.accent,
-                    contentColor = Color.White,
-                    shape = CircleShape,
-                    modifier = Modifier.size(56.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "Новый чат",
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Новый чат",
+                    tint = Color.White,
+                    modifier = Modifier.size(24.dp)
+                )
             }
         }
     }
@@ -571,8 +574,10 @@ fun ChatConversationScreen(
     onBack: () -> Unit,
     onSessionUpdated: (ChatSession) -> Unit
 ) {
-    BackHandler(onBack = onBack)
     val context = LocalContext.current
+    BackHandler {
+        onBack()
+    }
     val applicationScope = remember {
         kotlinx.coroutines.CoroutineScope(
             kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main
@@ -818,32 +823,10 @@ fun ChatConversationScreen(
             .imePadding()
     ) {
         // ── Top bar ────────────────────────────────────────────────────────────
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onBack) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Назад",
-                    tint = AppTheme.colors.textPrimary,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-
-            Text(
-                text = session.title,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = AppTheme.colors.textPrimary,
-                maxLines = 1,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 4.dp)
-            )
-        }
+        ChatConversationTopBar(
+            title = session.title,
+            onBack = onBack
+        )
 
         // ── Messages + Floating Quick Actions ──────────────────────────────────
         Box(
@@ -888,225 +871,349 @@ fun ChatConversationScreen(
                 }
             }
 
-            // ── Быстрые кнопки (плавающие капсулы на прозрачном контейнере) ───
+            // ── Быстрые кнопки ───
             if (isTestPassed) {
-                Column(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .padding(bottom = 2.dp)
-                ) {
-                    // Кнопка-тоггл видимости панели
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
-                        contentAlignment = Alignment.CenterEnd
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(AppTheme.colors.surfaceElevated)
-                                .border(1.dp, AppTheme.colors.surfaceBorder, RoundedCornerShape(8.dp))
-                                .clickable { showQuickActions = !showQuickActions }
-                                .padding(horizontal = 8.dp, vertical = 3.dp)
-                        ) {
-                            Text(
-                                text = if (showQuickActions) "▲ скрыть" else "▼ быстрые",
-                                fontSize = 11.sp,
-                                color = AppTheme.colors.textSecondary
-                            )
-                        }
+                ChatQuickActionsPanel(
+                    modifier = Modifier.align(Alignment.BottomCenter),
+                    isLoading = isLoading,
+                    showQuickActions = showQuickActions,
+                    onToggleQuickActions = { showQuickActions = !showQuickActions },
+                    onActionClick = { prompt ->
+                        inputText = prompt
+                        sendMessage()
                     }
-
-                    if (showQuickActions) {
-                        androidx.compose.foundation.lazy.LazyRow(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp)
-                        ) {
-                            // ── Задача дня ─────────────────────────────────────────
-                            item {
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(20.dp))
-                                        .background(Color(0xFF1E1E2C))
-                                        .border(1.dp, Color(0xFFFF5252).copy(alpha = 0.6f), RoundedCornerShape(20.dp))
-                                        .clickable(enabled = !isLoading) {
-                                            val savedTask = DailyTaskStorage.getSavedTaskSync(context)
-                                            inputText = if (savedTask != null) {
-                                                "Вот моя задача дня по теме «${savedTask.type}»:\n${savedTask.latexStatement}\n\nПомоги разобраться с решением пошагово."
-                                            } else {
-                                                "Вышли мне пример задачи по высшей математике (тип: интеграл или производная), аналогичный задаче дня."
-                                            }
-                                            sendMessage()
-                                        }
-                                        .padding(horizontal = 14.dp, vertical = 8.dp)
-                                ) {
-                                    Text("📚 Задача дня", fontSize = 13.sp, color = Color(0xFFFF8A80))
-                                }
-                            }
-
-                            // ── Экранное время ──────────────────────────────────────
-                            item {
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(20.dp))
-                                        .background(Color(0xFF1E1E2C))
-                                        .border(1.dp, Color(0xFF7C4DFF).copy(alpha = 0.6f), RoundedCornerShape(20.dp))
-                                        .clickable(enabled = !isLoading) {
-                                            val recs = AiTestManager.savedRecommendations
-                                            val recsText = if (recs.isNotEmpty()) {
-                                                recs.entries.joinToString(", ") { (app, min) -> "$app — ${min} мин" }
-                                            } else "лимиты не установлены"
-                                            inputText = "Мои установленные лимиты экранного времени: $recsText. Оцени, оптимально ли это для продуктивности, и порекомендуй, что стоит посмотреть на YouTube сегодня исходя из моего профиля."
-                                            sendMessage()
-                                        }
-                                        .padding(horizontal = 14.dp, vertical = 8.dp)
-                                ) {
-                                    Text("📱 Экранное время", fontSize = 13.sp, color = Color(0xFFB39DDB))
-                                }
-                            }
-
-                            // ── План на день ────────────────────────────────────────
-                            item {
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(20.dp))
-                                        .background(Color(0xFF1E1E2C))
-                                        .border(1.dp, Color(0xFF4CAF50).copy(alpha = 0.6f), RoundedCornerShape(20.dp))
-                                        .clickable(enabled = !isLoading) {
-                                            val savedTask = DailyTaskStorage.getSavedTaskSync(context)
-                                            val taskHint = if (savedTask != null) "решить задачу дня по теме «${savedTask.type}»" else "решить математическую задачу"
-                                            inputText = "Составь мне краткий план на сегодня: $taskHint, что-то почитать или посмотреть полезного. Учти мой профиль и интересы."
-                                            sendMessage()
-                                        }
-                                        .padding(horizontal = 14.dp, vertical = 8.dp)
-                                ) {
-                                    Text("📅 План на день", fontSize = 13.sp, color = Color(0xFF81C784))
-                                }
-                            }
-                        }
-                    }
-                }
+                )
             }
         }
 
-        // ── Превью прикрепленного изображения (Item 4) ─────────────────────────
-        if (attachedImageBitmap != null) {
-            Box(
-                modifier = Modifier
-                    .padding(horizontal = 16.dp, vertical = 4.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(56.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .border(1.5.dp, AppTheme.accent, RoundedCornerShape(10.dp))
-                ) {
-                    Image(
-                        bitmap = attachedImageBitmap!!.asImageBitmap(),
-                        contentDescription = "Прикрепленное фото",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
-
-                // Кнопка удаления прикрепленного фото
-                Box(
-                    modifier = Modifier
-                        .offset(x = 44.dp, y = (-6).dp)
-                        .size(20.dp)
-                        .clip(CircleShape)
-                        .background(Color.Black.copy(alpha = 0.75f))
-                        .clickable {
-                            attachedImageBitmap = null
-                            attachedImageUri = null
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Удалить фото",
-                        tint = Color.White,
-                        modifier = Modifier.size(12.dp)
-                    )
-                }
+        // ── Превью прикрепленного изображения ─────────────────────────────────
+        ChatAttachedImagePreview(
+            bitmap = attachedImageBitmap,
+            onRemove = {
+                attachedImageBitmap = null
+                attachedImageUri = null
             }
-        }
+        )
 
         // ── Input bar ──────────────────────────────────────────────────────────
-        Row(
+        ChatInputBottomBar(
+            inputText = inputText,
+            onInputTextChange = { inputText = it },
+            isTestPassed = isTestPassed,
+            isLoading = isLoading,
+            attachedImageBitmap = attachedImageBitmap,
+            onPickImage = { imagePickerLauncher.launch("image/*") },
+            onSend = { sendMessage() }
+        )
+    }
+}
+
+// ── Вынесенные модульные компоненты экрана чата ────────────────────────────────
+
+@Composable
+private fun ChatConversationTopBar(
+    title: String,
+    onBack: () -> Unit
+) {
+    val context = LocalContext.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(onClick = {
+            com.example.project1.util.VibrationUtil.vibrateTick(context)
+            onBack()
+        }) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "Назад",
+                tint = AppTheme.colors.textPrimary,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+
+        Text(
+            text = title,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = AppTheme.colors.textPrimary,
+            maxLines = 1,
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 4.dp)
+        )
+    }
+}
+
+@Composable
+private fun ChatQuickActionsPanel(
+    modifier: Modifier = Modifier,
+    isLoading: Boolean,
+    showQuickActions: Boolean,
+    onToggleQuickActions: () -> Unit,
+    onActionClick: (String) -> Unit
+) {
+    val context = LocalContext.current
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(bottom = 2.dp)
+    ) {
+        // Кнопка-тоггл видимости панели
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(horizontal = 16.dp),
+            contentAlignment = Alignment.CenterEnd
         ) {
-            if (isTestPassed) {
-                IconButton(
-                    onClick = { imagePickerLauncher.launch("image/*") },
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(AppTheme.colors.surfaceElevated)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "Прикрепить",
-                        tint = if (attachedImageBitmap != null) AppTheme.accent else AppTheme.colors.textPrimary,
-                        modifier = Modifier.size(20.dp)
-                    )
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(AppTheme.colors.surfaceElevated)
+                    .border(1.dp, AppTheme.colors.surfaceBorder, RoundedCornerShape(8.dp))
+                    .clickable { onToggleQuickActions() }
+                    .padding(horizontal = 8.dp, vertical = 3.dp)
+            ) {
+                Text(
+                    text = if (showQuickActions) "▲ скрыть" else "▼ быстрые",
+                    fontSize = 11.sp,
+                    color = AppTheme.colors.textSecondary
+                )
+            }
+        }
+
+        if (showQuickActions) {
+            androidx.compose.foundation.lazy.LazyRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp)
+            ) {
+                // ── Задача дня ─────────────────────────────────────────
+                item {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Color(0xFF1E1E2C))
+                            .border(1.dp, Color(0xFFFF5252).copy(alpha = 0.6f), RoundedCornerShape(20.dp))
+                            .clickable(enabled = !isLoading) {
+                                val savedTask = DailyTaskStorage.getSavedTaskSync(context)
+                                val text = if (savedTask != null) {
+                                    "Вот моя задача дня по теме «${savedTask.type}»:\n${savedTask.latexStatement}\n\nПомоги разобраться с решением пошагово."
+                                } else {
+                                    "Вышли мне пример задачи по высшей математике (тип: интеграл или производная), аналогичный задаче дня."
+                                }
+                                onActionClick(text)
+                            }
+                            .padding(horizontal = 14.dp, vertical = 8.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.MenuBook,
+                                contentDescription = null,
+                                tint = Color(0xFFFF8A80),
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Text("Задача дня", fontSize = 13.sp, color = Color(0xFFFF8A80))
+                        }
+                    }
                 }
-                Spacer(modifier = Modifier.width(8.dp))
+
+                // ── Экранное время ──────────────────────────────────────
+                item {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Color(0xFF1E1E2C))
+                            .border(1.dp, Color(0xFF7C4DFF).copy(alpha = 0.6f), RoundedCornerShape(20.dp))
+                            .clickable(enabled = !isLoading) {
+                                val recs = AiTestManager.savedRecommendations
+                                val recsText = if (recs.isNotEmpty()) {
+                                    recs.entries.joinToString(", ") { (app, min) -> "$app — ${min} мин" }
+                                } else "лимиты не установлены"
+                                val text = "Мои установленные лимиты экранного времени: $recsText. Оцени, оптимально ли это для продуктивности, и порекомендуй, что стоит посмотреть на YouTube сегодня исходя из моего профиля."
+                                onActionClick(text)
+                            }
+                            .padding(horizontal = 14.dp, vertical = 8.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Smartphone,
+                                contentDescription = null,
+                                tint = Color(0xFFB39DDB),
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Text("Экранное время", fontSize = 13.sp, color = Color(0xFFB39DDB))
+                        }
+                    }
+                }
+
+                // ── План на день ────────────────────────────────────────
+                item {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Color(0xFF1E1E2C))
+                            .border(1.dp, Color(0xFF4CAF50).copy(alpha = 0.6f), RoundedCornerShape(20.dp))
+                            .clickable(enabled = !isLoading) {
+                                val savedTask = DailyTaskStorage.getSavedTaskSync(context)
+                                val taskHint = if (savedTask != null) "решить задачу дня по теме «${savedTask.type}»" else "решить математическую задачу"
+                                val text = "Составь мне краткий план на сегодня: $taskHint, что-то почитать или посмотреть полезного. Учти мой профиль и интересы."
+                                onActionClick(text)
+                            }
+                            .padding(horizontal = 14.dp, vertical = 8.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.CalendarToday,
+                                contentDescription = null,
+                                tint = Color(0xFF81C784),
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Text("План на день", fontSize = 13.sp, color = Color(0xFF81C784))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChatAttachedImagePreview(
+    bitmap: android.graphics.Bitmap?,
+    onRemove: () -> Unit
+) {
+    if (bitmap != null) {
+        Box(
+            modifier = Modifier
+                .padding(horizontal = 16.dp, vertical = 4.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .border(1.5.dp, AppTheme.accent, RoundedCornerShape(10.dp))
+            ) {
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = "Прикрепленное фото",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
             }
 
-            OutlinedTextField(
-                value = inputText,
-                onValueChange = { inputText = it },
-                enabled = isTestPassed,
-                placeholder = {
-                    Text(
-                        text = if (isTestPassed) "Задайте вопрос Gemini..." else "Пройдите тест для доступа",
-                        color = AppTheme.colors.textSecondary,
-                        fontSize = 14.sp
-                    )
-                },
-                shape = RoundedCornerShape(20.dp),
-                modifier = Modifier.weight(1f),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = AppTheme.colors.textPrimary,
-                    unfocusedTextColor = AppTheme.colors.textPrimary,
-                    disabledTextColor = AppTheme.colors.textSecondary.copy(alpha = 0.5f),
-                    focusedBorderColor = AppTheme.accent,
-                    unfocusedBorderColor = AppTheme.colors.surfaceBorder,
-                    disabledBorderColor = AppTheme.colors.surfaceBorder.copy(alpha = 0.5f),
-                    focusedContainerColor = AppTheme.colors.surfaceElevated,
-                    unfocusedContainerColor = AppTheme.colors.surfaceElevated,
-                    disabledContainerColor = AppTheme.colors.surface
-                ),
-                maxLines = 4
-            )
-
-            Spacer(modifier = Modifier.width(8.dp))
-
-            val canSend = isTestPassed && (inputText.isNotBlank() || attachedImageBitmap != null) && !isLoading
-            IconButton(
-                onClick = { sendMessage() },
-                enabled = canSend,
+            // Кнопка удаления прикрепленного фото
+            Box(
                 modifier = Modifier
-                    .size(48.dp)
+                    .offset(x = 44.dp, y = (-6).dp)
+                    .size(20.dp)
                     .clip(CircleShape)
-                    .background(if (canSend) AppTheme.accent else AppTheme.colors.surfaceElevated)
+                    .background(Color.Black.copy(alpha = 0.75f))
+                    .clickable { onRemove() },
+                contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Filled.Send,
-                    contentDescription = "Отправить",
-                    tint = if (canSend) Color.White else AppTheme.colors.textSecondary.copy(alpha = 0.4f),
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Удалить фото",
+                    tint = Color.White,
+                    modifier = Modifier.size(12.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChatInputBottomBar(
+    inputText: String,
+    onInputTextChange: (String) -> Unit,
+    isTestPassed: Boolean,
+    isLoading: Boolean,
+    attachedImageBitmap: android.graphics.Bitmap?,
+    onPickImage: () -> Unit,
+    onSend: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (isTestPassed) {
+            IconButton(
+                onClick = onPickImage,
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(AppTheme.colors.surfaceElevated)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Прикрепить",
+                    tint = if (attachedImageBitmap != null) AppTheme.accent else AppTheme.colors.textPrimary,
                     modifier = Modifier.size(20.dp)
                 )
             }
+            Spacer(modifier = Modifier.width(8.dp))
+        }
+
+        OutlinedTextField(
+            value = inputText,
+            onValueChange = onInputTextChange,
+            enabled = isTestPassed,
+            placeholder = {
+                Text(
+                    text = if (isTestPassed) "Задайте вопрос Gemini..." else "Пройдите тест для доступа",
+                    color = AppTheme.colors.textSecondary,
+                    fontSize = 14.sp
+                )
+            },
+            shape = RoundedCornerShape(20.dp),
+            modifier = Modifier.weight(1f),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = AppTheme.colors.textPrimary,
+                unfocusedTextColor = AppTheme.colors.textPrimary,
+                disabledTextColor = AppTheme.colors.textSecondary.copy(alpha = 0.5f),
+                focusedBorderColor = AppTheme.accent,
+                unfocusedBorderColor = AppTheme.colors.surfaceBorder,
+                disabledBorderColor = AppTheme.colors.surfaceBorder.copy(alpha = 0.5f),
+                focusedContainerColor = AppTheme.colors.surfaceElevated,
+                unfocusedContainerColor = AppTheme.colors.surfaceElevated,
+                disabledContainerColor = AppTheme.colors.surface
+            ),
+            maxLines = 4
+        )
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        val canSend = isTestPassed && (inputText.isNotBlank() || attachedImageBitmap != null) && !isLoading
+        IconButton(
+            onClick = onSend,
+            enabled = canSend,
+            modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .background(if (canSend) AppTheme.colors.primaryBrush else androidx.compose.ui.graphics.SolidColor(AppTheme.colors.surfaceElevated))
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.Send,
+                contentDescription = "Отправить",
+                tint = if (canSend) Color.White else AppTheme.colors.textSecondary.copy(alpha = 0.4f),
+                modifier = Modifier.size(20.dp)
+            )
         }
     }
 }
@@ -1195,7 +1302,7 @@ fun AsyncChatThumbnail(
 @Composable
 fun ChatMessageBubble(message: ChatMessage) {
     val alignment = if (message.isFromUser) Alignment.End else Alignment.Start
-    val bgColor = if (message.isFromUser) AppTheme.accent else AppTheme.colors.surface
+    val bgBrush = if (message.isFromUser) AppTheme.colors.primaryBrush else androidx.compose.ui.graphics.SolidColor(AppTheme.colors.surface)
     val textColor = if (message.isFromUser) Color.White else AppTheme.colors.textPrimary
 
     Column(
@@ -1223,7 +1330,7 @@ fun ChatMessageBubble(message: ChatMessage) {
                             bottomEnd = if (message.isFromUser) 4.dp else 16.dp
                         )
                     )
-                    .background(bgColor)
+                    .background(bgBrush)
                     .padding(horizontal = 14.dp, vertical = 10.dp)
             ) {
                 MixedMathText(

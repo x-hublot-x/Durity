@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.rounded.ShoppingBag
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -31,21 +32,26 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.project1.data.storage.DailyTaskStorage
+import com.example.project1.data.storage.UserRatingStorage
 import com.example.project1.ui.components.AnimatedBottomBarEffect
 import com.example.project1.ui.components.BottomBarPreview
 import com.example.project1.ui.components.CoinIcon
+import com.example.project1.ui.components.UserRatingDialog
 import com.example.project1.ui.theme.AppTheme
 import com.example.project1.ui.theme.BottomBarStyle
 import com.example.project1.ui.theme.ThemeManager
+import com.example.project1.util.hapticClickable
 
 @Composable
 fun BottomBarStyleScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    BackHandler(onBack = onBack)
-
     val context = LocalContext.current
+    BackHandler {
+        onBack()
+    }
+
     val currentBarStyle = ThemeManager.currentBottomBarStyle
     val colors = AppTheme.colors
     val allStyles = BottomBarStyle.entries
@@ -53,6 +59,7 @@ fun BottomBarStyleScreen(
     var previewStyle by remember { mutableStateOf(currentBarStyle) }
     var styleToBuy by remember { mutableStateOf<BottomBarStyle?>(null) }
     var userCoins by remember { mutableIntStateOf(DailyTaskStorage.getCoins(context)) }
+    var showRatingDialog by remember { mutableStateOf(false) }
 
     Box(
         modifier = modifier
@@ -67,7 +74,10 @@ fun BottomBarStyleScreen(
                     .padding(horizontal = 8.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onBack) {
+                IconButton(onClick = {
+                    com.example.project1.util.VibrationUtil.vibrateTick(context)
+                    onBack()
+                }) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Назад",
@@ -89,13 +99,16 @@ fun BottomBarStyleScreen(
                     )
                 }
 
-                // Чип баланса монет
+                // Чип баланса монет (клик открывает рейтинг)
                 Row(
                     modifier = Modifier
                         .padding(end = 8.dp)
                         .clip(RoundedCornerShape(16.dp))
                         .background(colors.surfaceElevated)
                         .border(1.dp, colors.surfaceBorder, RoundedCornerShape(16.dp))
+                        .hapticClickable(context) {
+                            showRatingDialog = true
+                        }
                         .padding(horizontal = 10.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -199,7 +212,18 @@ fun BottomBarStyleScreen(
 
                     val isPreviewUnlocked = ThemeManager.isStyleUnlocked(previewStyle)
                     if (previewStyle == currentBarStyle) {
-                        Text("✓ Активен", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = colors.primary)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = null,
+                                tint = colors.primary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text("Активен", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = colors.primary)
+                        }
                     } else if (isPreviewUnlocked) {
                         Text("Куплено", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = colors.textSecondary)
                     } else {
@@ -244,7 +268,18 @@ fun BottomBarStyleScreen(
                             .fillMaxWidth()
                             .height(42.dp)
                     ) {
-                        Text("✓ Стиль уже выбран", color = colors.textSecondary, fontSize = 14.sp)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = null,
+                                tint = colors.textSecondary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text("Стиль уже выбран", color = colors.textSecondary, fontSize = 14.sp)
+                        }
                     }
                 } else if (isPreviewUnlocked) {
                     Button(
@@ -306,7 +341,12 @@ fun BottomBarStyleScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("🛍️", fontSize = 20.sp)
+                    Icon(
+                        imageVector = Icons.Rounded.ShoppingBag,
+                        contentDescription = null,
+                        tint = colors.primary,
+                        modifier = Modifier.size(22.dp)
+                    )
                     Text(
                         "Покупка стиля",
                         color = colors.textPrimary,
@@ -439,6 +479,13 @@ fun BottomBarStyleScreen(
                     Text("Отмена", color = colors.textSecondary)
                 }
             }
+        )
+    }
+
+    if (showRatingDialog) {
+        UserRatingDialog(
+            rating = UserRatingStorage.getRating(context),
+            onDismiss = { showRatingDialog = false }
         )
     }
 }
@@ -624,12 +671,23 @@ fun BottomBarStyleItemCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (isSelected) {
-                    Text(
-                        text = "✓ Активен",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = colors.primary
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = null,
+                            tint = colors.primary,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Text(
+                            text = "Активен",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.primary
+                        )
+                    }
                 } else if (isUnlocked) {
                     Text(
                         text = "Куплено",
