@@ -34,6 +34,8 @@ import com.example.project1.ui.theme.AppTheme
 import com.example.project1.util.formatMinutes
 import com.example.project1.util.hapticClickable
 
+import com.example.project1.ui.wallpaper.AppBackgroundWallpaper
+
 @Composable
 fun DailySummaryScreen(
     summary: DailySummaryData,
@@ -48,11 +50,7 @@ fun DailySummaryScreen(
         onBack()
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(colors.background)
-    ) {
+    AppBackgroundWallpaper {
         Column(
             modifier = Modifier
                 .fillMaxSize()

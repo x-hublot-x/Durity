@@ -196,11 +196,7 @@ fun MathBlitzSetupScreen(
         onBack()
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(colors.background)
-    ) {
+    com.example.project1.ui.wallpaper.AppBackgroundWallpaper {
         Column(
             modifier = Modifier
                 .fillMaxSize()

@@ -11,9 +11,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.rounded.BarChart
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,12 +52,12 @@ fun StatsScreen(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(colors.background)
-            .padding(horizontal = 16.dp)
-    ) {
+    com.example.project1.ui.wallpaper.AppBackgroundWallpaper {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp)
+        ) {
         Spacer(modifier = Modifier.height(16.dp))
 
         Row(
@@ -120,7 +124,72 @@ fun StatsScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // ── Баннер Еженедельного отчета (Durity Wrapped) ─────────────────────
+        var showWeeklyReport by remember { mutableStateOf(false) }
+
+        Card(
+            onClick = {
+                VibrationUtil.vibrateTick(context)
+                showWeeklyReport = true
+            },
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = colors.surface),
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, colors.primary.copy(alpha = 0.35f), RoundedCornerShape(18.dp))
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(colors.primary.copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.BarChart,
+                            contentDescription = null,
+                            tint = colors.primary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    Column {
+                        Text(
+                            text = "Дофаминовый отчет недели",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.textPrimary
+                        )
+                        Text(
+                            text = "Сэкономленное время, задачи и ранг",
+                            fontSize = 12.sp,
+                            color = colors.textSecondary
+                        )
+                    }
+                }
+                Text(text = "›", fontSize = 24.sp, color = colors.primary, fontWeight = FontWeight.Light)
+            }
+        }
+
+        if (showWeeklyReport) {
+            com.example.project1.ui.screens.home.WeeklyDopamineReportDialog(
+                onDismiss = { showWeeklyReport = false }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
 
         Text(
             text = "Детализация по таймерам",
@@ -153,6 +222,7 @@ fun StatsScreen(
             }
         }
     }
+}
 }
 
 @Composable

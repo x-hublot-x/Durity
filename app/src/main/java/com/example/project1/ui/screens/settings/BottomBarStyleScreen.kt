@@ -64,7 +64,6 @@ fun BottomBarStyleScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(colors.background)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // Верхняя панель: Навигация + баланс монет

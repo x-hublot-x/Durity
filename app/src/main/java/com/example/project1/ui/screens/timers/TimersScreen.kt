@@ -12,8 +12,11 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import kotlinx.coroutines.launch
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
@@ -21,12 +24,15 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.rounded.AcUnit
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.HourglassBottom
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -197,6 +203,7 @@ fun AutoAddDialog(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TimersScreen(
     appsWithTimers: List<AppInfo>,
@@ -207,6 +214,11 @@ fun TimersScreen(
     onUnlockTimer: (AppInfo) -> Unit,
     onAutoAddTimers: (Map<String, Int>) -> Unit
 ) {
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("timers_subtab_prefs", android.content.Context.MODE_PRIVATE) }
+    var selectedTab by remember {
+        mutableIntStateOf(prefs.getInt("last_selected_tab", 0))
+    }
     var isEditMode by remember { mutableStateOf(false) }
     var showAutoAddDialog by remember { mutableStateOf(false) }
     var showAiTestDialog by remember { mutableStateOf(false) }
@@ -230,80 +242,215 @@ fun TimersScreen(
                 .padding(horizontal = 16.dp)
         ) {
             Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = "Активные таймеры",
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                color = AppTheme.colors.textPrimary,
-                modifier = Modifier.padding(vertical = 12.dp)
-            )
 
-            if (appsWithTimers.isEmpty()) {
+            // ── Фиксированный переключатель разделов сверху (Лимиты / Фокус) ──
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(AppTheme.colors.surface)
+                    .padding(4.dp)
+            ) {
+                val isLimitsSelected = selectedTab == 0
+                val limitsBgColor by animateColorAsState(
+                    targetValue = if (isLimitsSelected) AppTheme.colors.primary else Color.Transparent,
+                    animationSpec = tween(250),
+                    label = "LimitsTabBg"
+                )
                 Box(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(42.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .then(
+                            if (isLimitsSelected) {
+                                if (AppTheme.colors.isGradient) {
+                                    Modifier.background(AppTheme.colors.primaryBrush)
+                                } else {
+                                    Modifier.background(limitsBgColor)
+                                }
+                            } else {
+                                Modifier.background(Color.Transparent)
+                            }
+                        )
+                        .clickable {
+                            com.example.project1.util.VibrationUtil.vibrateTick(context)
+                            selectedTab = 0
+                            prefs.edit().putInt("last_selected_tab", 0).apply()
+                        },
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "Нет установленных таймеров",
-                        color = AppTheme.colors.textSecondary,
-                        fontSize = 16.sp
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.HourglassBottom,
+                            contentDescription = null,
+                            tint = if (isLimitsSelected) Color.White else AppTheme.colors.textSecondary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = "Лимиты (${appsWithTimers.size})",
+                            fontSize = 13.sp,
+                            fontWeight = if (isLimitsSelected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isLimitsSelected) Color.White else AppTheme.colors.textSecondary
+                        )
+                    }
                 }
-            } else {
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    contentPadding = PaddingValues(bottom = 180.dp)
+
+                val isFocusSelected = selectedTab == 1
+                val focusBgColor by animateColorAsState(
+                    targetValue = if (isFocusSelected) AppTheme.colors.primary else Color.Transparent,
+                    animationSpec = tween(250),
+                    label = "FocusTabBg"
+                )
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(42.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .then(
+                            if (isFocusSelected) {
+                                if (AppTheme.colors.isGradient) {
+                                    Modifier.background(AppTheme.colors.primaryBrush)
+                                } else {
+                                    Modifier.background(focusBgColor)
+                                }
+                            } else {
+                                Modifier.background(Color.Transparent)
+                            }
+                        )
+                        .clickable {
+                            com.example.project1.util.VibrationUtil.vibrateTick(context)
+                            selectedTab = 1
+                            prefs.edit().putInt("last_selected_tab", 1).apply()
+                        },
+                    contentAlignment = Alignment.Center
                 ) {
-                    items(appsWithTimers, key = { it.packageName }) { app ->
-                        ActiveTimerCard(
-                            app = app,
-                            isEditMode = isEditMode,
-                            onLongPress = { isEditMode = !isEditMode },
-                            onEdit = { onEditTimer(app) },
-                            onDelete = { onDeleteTimer(app) },
-                            onUnlock = { onUnlockTimer(app) }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Timer,
+                            contentDescription = null,
+                            tint = if (isFocusSelected) Color.White else AppTheme.colors.textSecondary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = "Фокус • Pomodoro",
+                            fontSize = 13.sp,
+                            fontWeight = if (isFocusSelected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isFocusSelected) Color.White else AppTheme.colors.textSecondary
                         )
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // ── Контент вкладки (Лимиты / Фокус) ──────────────────────────
+            AnimatedContent(
+                targetState = selectedTab,
+                transitionSpec = {
+                    if (targetState > initialState) {
+                        (slideInHorizontally { it / 4 } + fadeIn(tween(200)))
+                            .togetherWith(slideOutHorizontally { -it / 4 } + fadeOut(tween(200)))
+                    } else {
+                        (slideInHorizontally { -it / 4 } + fadeIn(tween(200)))
+                            .togetherWith(slideOutHorizontally { it / 4 } + fadeOut(tween(200)))
+                    }
+                },
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                label = "TimersSubTabContent"
+            ) { page ->
+                if (page == 0) {
+                    if (appsWithTimers.isEmpty()) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Нет установленных таймеров",
+                                color = AppTheme.colors.textSecondary,
+                                fontSize = 16.sp
+                            )
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            contentPadding = PaddingValues(top = 2.dp, bottom = 180.dp)
+                        ) {
+                            items(appsWithTimers, key = { it.packageName }) { app ->
+                                ActiveTimerCard(
+                                    app = app,
+                                    isEditMode = isEditMode,
+                                    onLongPress = { isEditMode = !isEditMode },
+                                    onEdit = { onEditTimer(app) },
+                                    onDelete = { onDeleteTimer(app) },
+                                    onUnlock = { onUnlockTimer(app) }
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    FocusScreen()
+                }
+            }
         }
 
-        Column(
+        AnimatedVisibility(
+            visible = selectedTab == 0,
+            enter = scaleIn(animationSpec = tween(220)) + fadeIn(animationSpec = tween(220)),
+            exit = scaleOut(animationSpec = tween(220)) + fadeOut(animationSpec = tween(220)),
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(bottom = 90.dp, end = 20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(bottom = 90.dp, end = 20.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .size(56.dp)
-                    .clip(CircleShape)
-                    .background(AppTheme.colors.primaryBrush)
-                    .clickable { onAddTimerClick() },
-                contentAlignment = Alignment.Center
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Icon(imageVector = Icons.Default.Add, contentDescription = "Добавить таймер", tint = Color.White)
-            }
+                Box(
+                    modifier = Modifier
+                        .shadow(8.dp, CircleShape)
+                        .size(56.dp)
+                        .clip(CircleShape)
+                        .background(AppTheme.colors.primaryBrush)
+                        .clickable { onAddTimerClick() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Добавить",
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
 
-            FloatingActionButton(
-                onClick = { showAutoAddDialog = true },
-                containerColor = AppTheme.colors.surfaceElevated,
-                contentColor = AppTheme.colors.textPrimary,
-                shape = CircleShape,
-                modifier = Modifier.size(48.dp)
-            ) {
-                AutoAddIcon()
-            }
+                FloatingActionButton(
+                    onClick = { showAutoAddDialog = true },
+                    containerColor = AppTheme.colors.surfaceElevated,
+                    contentColor = AppTheme.colors.textPrimary,
+                    shape = CircleShape,
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    AutoAddIcon()
+                }
 
-            FloatingActionButton(
-                onClick = { showAiTestDialog = true },
-                containerColor = AppTheme.colors.surfaceElevated,
-                contentColor = AppTheme.colors.textPrimary,
-                shape = CircleShape,
-                modifier = Modifier.size(48.dp)
-            ) {
-                SamsungAiStarsIcon(tint = AppTheme.colors.textPrimary)
+                FloatingActionButton(
+                    onClick = { showAiTestDialog = true },
+                    containerColor = AppTheme.colors.surfaceElevated,
+                    contentColor = AppTheme.colors.textPrimary,
+                    shape = CircleShape,
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    SamsungAiStarsIcon(tint = AppTheme.colors.textPrimary)
+                }
             }
         }
 

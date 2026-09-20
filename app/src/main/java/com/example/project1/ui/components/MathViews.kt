@@ -345,6 +345,8 @@ fun KatexViewLeft(
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<link rel="stylesheet" href="file:///android_asset/katex/katex.min.css">
+<script src="file:///android_asset/katex/katex.min.js"></script>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 html, body {
@@ -354,27 +356,25 @@ html, body {
   margin: 0;
   padding: 0;
   overflow-x: auto;
-  overflow-y: hidden;
-  white-space: nowrap;
+  overflow-y: visible;
   -webkit-overflow-scrolling: touch;
   width: 100%;
-  min-width: 100%;
 }
 #math-wrapper {
   display: inline-flex;
   min-width: 100%;
+  padding: 4px 2px;
   box-sizing: border-box;
 }
 #math {
   display: inline-block;
-  padding: 4px 2px;
   text-align: left;
 }
 .katex-display {
   margin: 0 !important;
   text-align: left !important;
 }
-.katex { font-size: 1em; }
+.katex { font-size: 1.05em; }
 </style>
 </head>
 <body>
@@ -385,26 +385,24 @@ html, body {
 (function() {
   var latex = '$sanitizedLatex';
   var displayMode = $displayMode;
-
   function render() {
     var el = document.getElementById('math');
     try {
-      katex.render(latex, el, { throwOnError: false, displayMode: displayMode });
+      if (window.katex) {
+        katex.render(latex, el, { throwOnError: false, displayMode: displayMode });
+      } else {
+        el.innerText = latex;
+      }
     } catch(e) {
       el.innerText = latex;
     }
   }
-
-  var link = document.createElement('link');
-  link.rel = 'stylesheet';
-  link.href = 'file:///android_asset/katex/katex.min.css';
-  document.head.appendChild(link);
-
-  var script = document.createElement('script');
-  script.src = 'file:///android_asset/katex/katex.min.js';
-  script.onload = render;
-  script.onerror = function() { document.getElementById('math').innerText = latex; };
-  document.head.appendChild(script);
+  if (window.katex) {
+    render();
+  } else {
+    window.addEventListener('DOMContentLoaded', render);
+    setTimeout(render, 80);
+  }
 })();
 </script>
 </body>

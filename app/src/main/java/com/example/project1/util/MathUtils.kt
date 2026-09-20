@@ -23,12 +23,35 @@ fun parseMessageSegments(text: String): List<MessageSegment> {
                 continue
             }
         }
+        // Проверяем наличие окружений LaTeX без знаков доллара (например \begin{pmatrix} ... \end{pmatrix})
+        if (text.startsWith("\\begin{", i)) {
+            val sub = text.substring(i)
+            val closeBrace = sub.indexOf('}')
+            if (closeBrace != -1) {
+                val envName = sub.substring(7, closeBrace)
+                val envEndTag = "\\end{$envName}"
+                val endIdx = text.indexOf(envEndTag, i)
+                if (endIdx != -1) {
+                    val fullEnv = text.substring(i, endIdx + envEndTag.length).trim()
+                    if (sb.isNotEmpty()) { segments += MessageSegment.PlainText(sb.toString()); sb.clear() }
+                    segments += MessageSegment.BlockMath(fullEnv)
+                    i = endIdx + envEndTag.length
+                    continue
+                }
+            }
+        }
         if (text[i] == '$') {
             val end = text.indexOf('$', i + 1)
             if (end != -1 && end > i + 1) {
                 if (sb.isNotEmpty()) { segments += MessageSegment.PlainText(sb.toString()); sb.clear() }
                 val latex = text.substring(i + 1, end).trim()
-                if (latex.isNotEmpty()) segments += MessageSegment.InlineMath(latex)
+                if (latex.isNotEmpty()) {
+                    if (latex.contains("\\begin{") || latex.contains("\\matrix") || latex.contains("\\pmatrix") || latex.contains("\\vmatrix") || latex.contains("\\bmatrix") || latex.contains("\\\\")) {
+                        segments += MessageSegment.BlockMath(latex)
+                    } else {
+                        segments += MessageSegment.InlineMath(latex)
+                    }
+                }
                 i = end + 1
                 continue
             }

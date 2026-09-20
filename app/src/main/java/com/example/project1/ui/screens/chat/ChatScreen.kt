@@ -244,7 +244,6 @@ fun ChatListScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(AppTheme.colors.background)
             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))
             .pointerInput(editMode) {
                 detectTapGestures { if (editMode) editMode = false }
@@ -818,7 +817,6 @@ fun ChatConversationScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(AppTheme.colors.background)
             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))
             .imePadding()
     ) {

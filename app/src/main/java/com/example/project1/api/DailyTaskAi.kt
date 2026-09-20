@@ -167,6 +167,30 @@ val OFFLINE_DAILY_TASKS = listOf(
     )
 )
 
+fun computeMatrixDeterminant(latex: String): Long? {
+    return try {
+        val pattern = Regex("""\\begin\{[a-z]*matrix\}(.*?)\\end\{[a-z]*matrix\}""", RegexOption.DOT_MATCHES_ALL)
+        val match = pattern.find(latex) ?: return null
+        val body = match.groupValues[1].trim()
+        val rows = body.split(Regex("""\\\\|\\n|\n""")).map { it.trim() }.filter { it.isNotEmpty() }
+        val matrix = rows.map { row ->
+            row.split(Regex("""[&,\s]+""")).map { it.trim() }.filter { it.isNotEmpty() }.map { it.toLong() }
+        }
+        if (matrix.size == 2 && matrix.all { it.size == 2 }) {
+            val a = matrix[0][0]; val b = matrix[0][1]
+            val c = matrix[1][0]; val d = matrix[1][1]
+            a * d - b * c
+        } else if (matrix.size == 3 && matrix.all { it.size == 3 }) {
+            val a = matrix[0][0]; val b = matrix[0][1]; val c = matrix[0][2]
+            val d = matrix[1][0]; val e = matrix[1][1]; val f = matrix[1][2]
+            val g = matrix[2][0]; val h = matrix[2][1]; val i = matrix[2][2]
+            a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g)
+        } else null
+    } catch (_: Exception) {
+        null
+    }
+}
+
 suspend fun generateDailyTaskWithAi(context: Context, apiKey: String): DailyIntegralTask = withContext(Dispatchers.IO) {
     DailyTaskStorage.getSavedTask(context)?.let { return@withContext it }
 
@@ -201,6 +225,9 @@ suspend fun generateDailyTaskWithAi(context: Context, apiKey: String): DailyInte
 - Если контурное интегрирование, пиши задачу на замкнутый контур с простыми вычетами или интегральной формулой Коши: например ${'$'}${'$'}\oint_{|z|=2} \frac{e^z}{z-1} \, dz${'$'}${'$'}
 - Если производная комплексной функции, пиши задачу на нахождение производной f'(z) или через условия Коши-Римана: например ${'$'}${'$'}f(z) = z^3 - 3iz, \ f'(1+i)${'$'}${'$'}
 
+ВНИМАНИЕ К ТОЧНОСТИ:
+Все вычисления в поле 'correctAnswer' делай максимально строго и перепроверяй пошагово (особенно для определителей матриц: вычисляй по формуле разложения, внимательно следи за знаками и арифметикой).
+
 Верни СТРОГО JSON без markdown-обёрток:
 {
   "type": "$chosenType",
@@ -217,11 +244,20 @@ suspend fun generateDailyTaskWithAi(context: Context, apiKey: String): DailyInte
         val cleaned = raw.removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
         val safeJson = cleaned.replace(Regex("""(?<!\\)\\to(?![a-zA-Z])"""), "\\\\to")
         val json = JSONObject(safeJson)
+        val latex = json.getString("latexStatement").replace("\to", "\\to ")
+        var correctAnswer = json.getString("correctAnswer").trim()
+
+        // Автоматическая математическая перепроверка для определителей матриц
+        val computedDet = computeMatrixDeterminant(latex)
+        if (computedDet != null) {
+            correctAnswer = computedDet.toString()
+        }
+
         val newTask = DailyIntegralTask(
             id = System.currentTimeMillis().toString().takeLast(4),
             type = json.optString("type", chosenType),
-            latexStatement = json.getString("latexStatement").replace("\to", "\\to "),
-            correctAnswer = json.getString("correctAnswer"),
+            latexStatement = latex,
+            correctAnswer = correctAnswer,
             description = json.getString("description")
         )
 
@@ -242,28 +278,49 @@ suspend fun checkAnswerWithAi(
     userAnswer: String,
     apiKey: String
 ): CheckResponse = withContext(Dispatchers.IO) {
+    val cleanUser = userAnswer.trim()
+    val cleanExpected = task.correctAnswer.trim()
+
+    // 1. Точное совпадение со строковым эталоном
+    if (cleanUser.equals(cleanExpected, ignoreCase = true)) {
+        return@withContext CheckResponse(CheckResult.CORRECT, "Верно! Ответ абсолютно точный.")
+    }
+
+    // 2. Детерминированная проверка определителей матриц
+    val calculatedDet = computeMatrixDeterminant(task.latexStatement)
+    if (calculatedDet != null) {
+        val userNum = cleanUser.toLongOrNull()
+        if (userNum != null && userNum == calculatedDet) {
+            return@withContext CheckResponse(CheckResult.CORRECT, "Верно! Определитель матрицы равен $calculatedDet.")
+        }
+    }
+
     try {
         val model = GenerativeModel(
             modelName = "gemini-3.5-flash-lite",
             apiKey = apiKey
         )
         val prompt = """
-Ты строгий преподаватель высшей математики. Проверь ответ студента.
+Ты строгий и безошибочный эксперт по высшей математике. Проверь ответ студента.
 
 Тип задачи: ${task.type}
-Условие задачи: ${task.description}
-Эталон ответа: ${task.correctAnswer}
+Формула/условие (LaTeX): ${task.latexStatement}
+Описание: ${task.description}
+Сгенерированный эталон: ${task.correctAnswer}
 Ответ студента: $userAnswer
 
-Оцени ответ по одной из трёх категорий:
-1. CORRECT — ответ верный (математически эквивалентен эталону, константа интегрирования может быть опущена или записана как +C)
-2. CLOSE — ответ почти верный (небольшая арефметическая ошибка, перепутан знак или забыта константа)
-3. WRONG — ответ абсолютно неверный
+КРИТИЧЕСКИ ВАЖНО:
+1. САМОСТОЯТЕЛЬНО пошагово реши задачу по условию и формуле. Если эталон содержит арифметическую ошибку, верным является ИСТИННОЕ математическое решение задачи!
+2. Сравни ответ студента с истинным решением:
+   - Если ответ студента совпадает с истинным решением задачи (или математически эквивалентен ему), верни результат "CORRECT".
+   - Для определителей матриц, пределов, значений производных в точке: если числовое значение совпадает, это "CORRECT".
+   - Если допущена лишь небольшая опечатка в знаке (+/-), верни "CLOSE".
+   - Если ответ неверен, верни "WRONG".
 
 Ответь СТРОГО в формате JSON (без markdown):
 {
   "result": "CORRECT" | "CLOSE" | "WRONG",
-  "comment": "Короткий комментарий на русском (1-2 предложения). Если упоминаешь формулы, оборачивай их в LaTeX ${'$'}...${'$'}. Если CLOSE — укажи на ошибку. Если WRONG — дай наводящую подсказку, не давай готовый ответ."
+  "comment": "Короткий комментарий на русском (1-2 предложения). Если упоминаешь формулы, оборачивай их в LaTeX ${'$'}...${'$'}."
 }
         """.trimIndent()
 

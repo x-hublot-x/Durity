@@ -52,7 +52,9 @@ import com.example.project1.BuildConfig
 import com.example.project1.data.storage.DailySummaryData
 import com.example.project1.data.storage.DailySummaryStorage
 import com.example.project1.data.storage.UserRatingStorage
+import com.example.project1.data.storage.WeeklyReportStorage
 import com.example.project1.service.DailySummaryManager
+import com.example.project1.service.WeeklyReportManager
 import com.example.project1.ui.components.UserRatingDialog
 import com.example.project1.util.VibrationUtil
 import com.example.project1.util.formatMinutes
@@ -162,7 +164,15 @@ fun HomeScreen(
 
     var showRetestConfirm by remember { mutableStateOf(false) }
     var showNotificationCenter by remember { mutableStateOf(false) }
+    var showWeeklyReportDialog by remember { mutableStateOf(false) }
     var hasUnreadNotifications by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        // Убеждаемся, что еженедельный отчет доступен
+        if (WeeklyReportStorage.getLatestReport(context) == null) {
+            WeeklyReportManager.generateOrUpdateReport(context)
+        }
+    }
 
     LaunchedEffect(showNotificationCenter) {
         onNotificationCenterOpenChanged(showNotificationCenter)
@@ -459,7 +469,14 @@ fun HomeScreen(
             onOpenDailySummary = onOpenDailySummary,
             onOpenDailyTask = onNavigateToDailyTask,
             onOpenBlitz = onOpenBlitz,
+            onOpenWeeklyReport = { showWeeklyReportDialog = true },
             hazeState = hazeState
+        )
+    }
+
+    if (showWeeklyReportDialog) {
+        WeeklyDopamineReportDialog(
+            onDismiss = { showWeeklyReportDialog = false }
         )
     }
 }

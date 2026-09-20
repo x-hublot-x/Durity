@@ -5,6 +5,7 @@ import android.accessibilityservice.AccessibilityServiceInfo
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import androidx.core.app.NotificationCompat
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
@@ -31,7 +32,9 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.bumptech.glide.Glide
-import androidx.core.app.NotificationCompat
+import androidx.compose.ui.graphics.toArgb
+import com.example.project1.data.storage.BlockMediaManager
+import com.example.project1.ui.theme.AccentTheme
 import com.example.project1.R
 import com.example.project1.data.storage.AppTimerStore
 import java.util.Calendar
@@ -230,10 +233,11 @@ class AppBlockAccessibilityService : AccessibilityService() {
                 return
             }
 
+            val isFocusStrictActive = FocusSessionManager.isActive && !FocusSessionManager.isPaused && FocusSessionManager.strictMode
             val hasTimer = AppTimerStore.hasLimit(pkg)
             val isExhausted = AppTimerStore.isExhausted(pkg)
 
-            if (!hasTimer && !isExhausted) {
+            if (!isFocusStrictActive && !hasTimer && !isExhausted) {
                 mainHandler.postDelayed(this, 2500L)
                 return
             }
@@ -249,7 +253,7 @@ class AppBlockAccessibilityService : AccessibilityService() {
                     val now = System.currentTimeMillis()
                     if (now < (blockCooldowns[pkg] ?: 0L)) return@post
 
-                    if (isExhausted) {
+                    if (isFocusStrictActive || isExhausted) {
                         mainHandler.post { doBlock(pkg) }
                         return@post
                     }
@@ -392,7 +396,10 @@ class AppBlockAccessibilityService : AccessibilityService() {
         if (now >= (blockCooldowns[packageName] ?: 0L)) {
             bgHandler.post {
                 try {
-                    if (AppTimerStore.isExhausted(packageName)) {
+                    val isFocusStrictActive = FocusSessionManager.isActive && !FocusSessionManager.isPaused && FocusSessionManager.strictMode
+                    if (isFocusStrictActive) {
+                        mainHandler.post { doBlock(packageName) }
+                    } else if (AppTimerStore.isExhausted(packageName)) {
                         mainHandler.post { doBlock(packageName) }
                     } else {
                         checkAndBlockOrWarnApp(packageName, now)
@@ -922,7 +929,8 @@ class AppBlockAccessibilityService : AccessibilityService() {
         } catch (_: Exception) {}
 
         try {
-            val mp: MediaPlayer? = MediaPlayer.create(applicationContext, R.raw.block_sound)
+            val soundRes = BlockMediaManager.getCurrentSoundRes(applicationContext)
+            val mp: MediaPlayer? = MediaPlayer.create(applicationContext, soundRes)
             if (mp != null) {
                 mp.setOnCompletionListener { it.release() }
                 mp.start()
@@ -987,15 +995,24 @@ class AppBlockAccessibilityService : AccessibilityService() {
             PixelFormat.TRANSLUCENT
         ).apply { gravity = Gravity.CENTER }
 
-        val minWidthPx = (280 * resources.displayMetrics.density).toInt()
+        val minWidthPx = (300 * resources.displayMetrics.density).toInt()
+        val cornerRadiusPx = 28f * resources.displayMetrics.density
+
+        // Задний фон: матовое стекло как у календаря с вертикальным градиентом и световым контуром
         val container = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             minimumWidth = minWidthPx
-            setPadding(64, 52, 64, 52)
-            background = GradientDrawable().apply {
-                setColor(Color.parseColor("#EE1A1A2E"))
-                cornerRadius = 40f
+            setPadding(64, 48, 64, 48)
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(
+                    Color.parseColor("#E6283248"),
+                    Color.parseColor("#F2121526")
+                )
+            ).apply {
+                cornerRadius = cornerRadiusPx
+                setStroke((1.2f * resources.displayMetrics.density).toInt(), Color.parseColor("#4DFFFFFF"))
             }
         }
 
@@ -1003,20 +1020,26 @@ class AppBlockAccessibilityService : AccessibilityService() {
             val sizePx = (120 * resources.displayMetrics.density).toInt()
             layoutParams = LinearLayout.LayoutParams(sizePx, sizePx).apply {
                 gravity = Gravity.CENTER_HORIZONTAL
-                bottomMargin = (12 * resources.displayMetrics.density).toInt()
+                bottomMargin = (14 * resources.displayMetrics.density).toInt()
             }
             scaleType = ImageView.ScaleType.FIT_CENTER
         }
         container.addView(gifView)
-        // Glide загружает GIF и запускает анимацию
+
+        val gifRes = BlockMediaManager.getCurrentGifRes(applicationContext)
         Glide.with(applicationContext)
             .asGif()
-            .load(R.raw.block_anim)
+            .load(gifRes)
             .into(gifView)
 
+        val isFocusStrictActive = FocusSessionManager.isActive && !FocusSessionManager.isPaused && FocusSessionManager.strictMode
+
         TextView(this).apply {
-            text = "ЗАСИДЕЛИСЬ ДА?"; setTextColor(Color.WHITE); textSize = 20f
-            gravity = Gravity.CENTER; setTypeface(typeface, Typeface.BOLD)
+            text = if (isFocusStrictActive) "РЕЖИМ ФОКУСА 🎯" else "ЗАСИДЕЛИСЬ ДА?"
+            setTextColor(Color.WHITE)
+            textSize = 20f
+            gravity = Gravity.CENTER
+            setTypeface(typeface, Typeface.BOLD)
             container.addView(this)
         }
 
@@ -1037,11 +1060,12 @@ class AppBlockAccessibilityService : AccessibilityService() {
         }
 
         TextView(this).apply {
-            text = "$label на сегодня хватит"
-            setTextColor(Color.parseColor("#BBBBBB")); textSize = 13f
+            text = if (isFocusStrictActive) "$label заблокирован во время фокуса" else "$label на сегодня хватит"
+            setTextColor(Color.parseColor("#C5CAE9"))
+            textSize = 13f
             gravity = Gravity.CENTER
             textAlignment = android.view.View.TEXT_ALIGNMENT_CENTER
-            setPadding(0, 8, 0, 32)
+            setPadding(0, 8, 0, 24)
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
@@ -1049,12 +1073,33 @@ class AppBlockAccessibilityService : AccessibilityService() {
             container.addView(this)
         }
 
-        Button(this).apply {
-            text = "Закрыть"; setTextColor(Color.WHITE); textSize = 14f
-            background = GradientDrawable().apply {
-                setColor(Color.parseColor("#CC3A3A")); cornerRadius = 24f
+        // Кнопка Закрыть: цвет/градиент синхронизируется с выбранной темой интерфейса
+        val themePrefs = applicationContext.getSharedPreferences("theme_preferences", Context.MODE_PRIVATE)
+        val accentStr = themePrefs.getString("accent_theme", AccentTheme.RED.name) ?: AccentTheme.RED.name
+        val accent = try { AccentTheme.valueOf(accentStr) } catch (_: Exception) { AccentTheme.RED }
+
+        val btnCornerRadiusPx = 20f * resources.displayMetrics.density
+        val btnBackground = if (accent.isGradient) {
+            GradientDrawable(
+                GradientDrawable.Orientation.LEFT_RIGHT,
+                intArrayOf(accent.primary.toArgb(), accent.secondary.toArgb())
+            ).apply {
+                cornerRadius = btnCornerRadiusPx
             }
-            setPadding(48, 20, 48, 20)
+        } else {
+            GradientDrawable().apply {
+                setColor(accent.primary.toArgb())
+                cornerRadius = btnCornerRadiusPx
+            }
+        }
+
+        Button(this).apply {
+            text = "Закрыть"
+            setTextColor(Color.WHITE)
+            textSize = 14f
+            setTypeface(typeface, Typeface.BOLD)
+            background = btnBackground
+            setPadding(54, 20, 54, 20)
             setOnClickListener { hideBlockOverlay() }
             container.addView(this)
         }
@@ -1104,9 +1149,7 @@ class AppBlockAccessibilityService : AccessibilityService() {
                 pkg == YOUTUBE_SHORTS_PACKAGE ||
                 pkg == INSTAGRAM_REELS_PACKAGE ||
                 pkg == VK_CLIPS_PACKAGE ||
-                pkg == TWITCH_CLIPS_PACKAGE ||
-                pkg == VK_CLIPS_STANDALONE_PACKAGE ||
-                pkg == VK_CLIENT_PACKAGE
+                pkg == TWITCH_CLIPS_PACKAGE
 
 
     override fun onInterrupt() {}

@@ -731,10 +731,11 @@ fun MathReferenceFullScreen(
                         modifier = Modifier.size(24.dp)
                     )
                     Spacer(Modifier.width(10.dp))
-                    GradientText(
+                    Text(
                         "Математический справочник",
                         fontSize = 19.sp,
                         fontWeight = FontWeight.Bold,
+                        color = Color.White,
                         modifier = Modifier.weight(1f)
                     )
                     Box(

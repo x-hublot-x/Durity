@@ -111,6 +111,8 @@ class MainActivity : ComponentActivity() {
         AppTimerStore.init(this)
         AiTestManager.init(this)
         ThemeManager.init(this)
+        com.example.project1.ui.wallpaper.WallpaperManager.init(this)
+        com.example.project1.data.storage.BlockMediaManager.init(this)
         enableEdgeToEdge()
 
         setContent {
@@ -227,6 +229,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() {
         super.onPause()
+        ThemeManager.applyPendingAppIcon(applicationContext)
         val session = MathBlitzStorage.getActiveSession(this)
         if (session != null && !session.isFinished && session.deadlineTime > System.currentTimeMillis()) {
             MathBlitzNotificationManager.showActiveBlitzNotification(this, session)
@@ -458,15 +461,16 @@ fun MainScreen() {
         }
     }
 
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        containerColor = AppTheme.colors.background
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
+    com.example.project1.ui.wallpaper.AppBackgroundWallpaper {
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            containerColor = androidx.compose.ui.graphics.Color.Transparent
+        ) { innerPadding ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+            ) {
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier
@@ -573,7 +577,7 @@ ${summary.aiRecommendation}
                         }
                     )
                     2 -> SettingsScreen(
-                        onBottomBarStyleOpenChanged = { isBottomBarStyleOpen = it }
+                        onSubScreenOpenChanged = { isBottomBarStyleOpen = it }
                     )
                     3 -> ChatScreen(
                         onChatOpenChanged = { isChatOpen = it },
@@ -871,4 +875,5 @@ ${s.aiRecommendation}
             }
         }
     }
+}
 }

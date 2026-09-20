@@ -15,6 +15,7 @@ import androidx.compose.material.icons.rounded.AcUnit
 import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.HourglassBottom
+import androidx.compose.material.icons.rounded.Insights
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsOff
 import androidx.compose.material.icons.rounded.TrackChanges
@@ -50,6 +51,7 @@ fun NotificationCenterBottomSheet(
     onOpenDailySummary: (() -> Unit)? = null,
     onOpenDailyTask: (() -> Unit)? = null,
     onOpenBlitz: (() -> Unit)? = null,
+    onOpenWeeklyReport: (() -> Unit)? = null,
     hazeState: HazeState? = null
 ) {
     val context = LocalContext.current
@@ -250,6 +252,10 @@ fun NotificationCenterBottomSheet(
                                         onDismiss()
                                         onOpenBlitz?.invoke()
                                     }
+                                    "weekly_report" -> {
+                                        onDismiss()
+                                        onOpenWeeklyReport?.invoke()
+                                    }
                                     else -> {}
                                 }
                             }
@@ -271,6 +277,7 @@ private fun NotificationItemCard(
     val context = LocalContext.current
 
     val (iconVector, iconTint, iconBg) = when (item.type) {
+        "weekly_report" -> Triple(Icons.Rounded.Insights, Color(0xFFFFD54F), Color(0xFF9C27B0).copy(alpha = 0.35f))
         "summary" -> Triple(Icons.Rounded.Bedtime, Color(0xFF9D4EDD), Color(0xFF7C4DFF).copy(alpha = 0.2f))
         "task"    -> Triple(Icons.Rounded.TrackChanges, Color(0xFFFF9100), Color(0xFFFF9100).copy(alpha = 0.2f))
         "blitz"   -> Triple(Icons.Rounded.Bolt, Color(0xFFFFD600), Color(0xFFFFD600).copy(alpha = 0.2f))

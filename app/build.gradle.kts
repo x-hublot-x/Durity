@@ -23,8 +23,8 @@ android {
         applicationId = "com.example.project1"
         minSdk = 24
         targetSdk = 34
-        versionCode = 5
-        versionName = "1.3.1"
+        versionCode = 6
+        versionName = "1.4.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -81,6 +81,8 @@ dependencies {
     implementation("dev.chrisbanes.haze:haze:0.7.3")
     implementation("com.airbnb.android:lottie-compose:6.4.0")
     implementation("com.github.bumptech.glide:glide:4.16.0")
+    implementation("io.coil-kt:coil-compose:2.6.0")
+    implementation("io.coil-kt:coil-gif:2.6.0")
 
     // Markdown-рендеринг для сообщений Gemini (bold, italic, code, списки)
     implementation("io.noties.markwon:core:4.6.2")

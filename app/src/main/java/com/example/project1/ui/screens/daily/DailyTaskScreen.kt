@@ -180,19 +180,18 @@ fun DailyTaskScreen(
         )
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(AppTheme.colors.background)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .haze(hazeState)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp)
-                .padding(bottom = 100.dp)
+    com.example.project1.ui.wallpaper.AppBackgroundWallpaper {
+        Box(
+            modifier = Modifier.fillMaxSize()
         ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .haze(hazeState)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 100.dp)
+            ) {
             Spacer(modifier = Modifier.height(56.dp))
 
             Row(
@@ -201,10 +200,11 @@ fun DailyTaskScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
-                    GradientText(
+                    Text(
                         text = "Задача дня",
                         fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
                     )
                     Text(
                         text = "Обновляется каждый день в 00:00 МСК",
@@ -697,7 +697,7 @@ fun DailyTaskScreen(
                                     OutlinedButton(
                                         onClick = {
                                             val title = "Помощь с задачей дня"
-                                            val hintBotMsg = "**Подсказка к задаче**\n\n$hintText\n\n---\nЗадача: ${currentTask.latexStatement}\n\nЗадавай вопросы — помогу разобраться пошагово, без готового ответа."
+                                            val hintBotMsg = "**Подсказка к задаче**\n\n$hintText\n\n---\n**Условие задачи:**\n\n${currentTask.latexStatement}\n\n---\nЗадавай любые вопросы — разберём решение пошагово."
                                             onNavigateToChat(title, hintBotMsg, currentTask.latexStatement)
                                         },
                                         shape = RoundedCornerShape(12.dp),
@@ -915,4 +915,5 @@ fun DailyTaskScreen(
             }
         }
     }
+}
 }

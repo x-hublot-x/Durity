@@ -319,11 +319,7 @@ fun MathBlitzScreen(
     val secondsLeft = (remainingMs / 1000) % 60
     val isUrgent = remainingMs < 30_000L && !session.isFinished
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(colors.background)
-    ) {
+    com.example.project1.ui.wallpaper.AppBackgroundWallpaper {
         Column(
             modifier = Modifier
                 .fillMaxSize()
