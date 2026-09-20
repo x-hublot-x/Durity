@@ -32,14 +32,15 @@ object FocusStorage {
     fun getSounds(context: Context): Set<AmbientSoundType> {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val raw = prefs.getStringSet(KEY_SOUNDS, null) ?: return setOf(AmbientSoundType.RAIN)
-        return raw.mapNotNull { name ->
+        val result = raw.mapNotNull { name ->
             try { AmbientSoundType.valueOf(name) } catch (_: Exception) { null }
         }.toSet()
+        return result
     }
 
     fun saveSounds(context: Context, sounds: Set<AmbientSoundType>) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val names = sounds.map { it.name }.toSet()
+        val names = HashSet(sounds.map { it.name })
         prefs.edit().putStringSet(KEY_SOUNDS, names).apply()
     }
 

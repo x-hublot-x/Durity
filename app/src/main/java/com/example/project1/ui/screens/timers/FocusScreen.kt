@@ -83,6 +83,14 @@ fun FocusScreen() {
     var showCustomTimeDialog by remember { mutableStateOf(false) }
     var showResetConfirmDialog by remember { mutableStateOf(false) }
 
+    LaunchedEffect(isActive, selectedSounds) {
+        if (isActive) {
+            chosenSounds = selectedSounds
+        } else {
+            chosenSounds = FocusStorage.getSounds(context)
+        }
+    }
+
     val progress = if (totalSec > 0) remainingSec.toFloat() / totalSec.toFloat() else 0f
     val animatedProgress by animateFloatAsState(
         targetValue = if (isActive) progress else 1f,
@@ -519,6 +527,7 @@ fun FocusScreen() {
                                         VibrationUtil.vibrateTick(context)
                                         if (isActive) {
                                             FocusSessionManager.toggleSound(context, soundType)
+                                            chosenSounds = FocusSessionManager.selectedSounds
                                         } else {
                                             val newSet = if (soundType == AmbientSoundType.NONE) {
                                                 emptySet()

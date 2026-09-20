@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.example.project1.data.storage.DailyTaskStorage
+import com.example.project1.data.storage.FocusStorage
 import com.example.project1.data.storage.NotificationHistoryStorage
 import com.example.project1.util.AmbientSoundGenerator
 import com.example.project1.util.AmbientSoundType
@@ -13,7 +14,7 @@ import com.example.project1.util.VibrationUtil
 import kotlinx.coroutines.*
 
 object FocusSessionManager {
-    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    private var scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var timerJob: Job? = null
     private var appContext: Context? = null
 
@@ -31,26 +32,40 @@ object FocusSessionManager {
         private set
 
     fun startSession(context: Context, minutes: Int, sounds: Set<AmbientSoundType>, isStrict: Boolean = false) {
-        appContext = context.applicationContext
+        val appCtx = context.applicationContext
+        appContext = appCtx
 
-        // Останавливаем предыдущую работу корутины без отправки асинхронного ACTION_STOP в сервис
         timerJob?.cancel()
         timerJob = null
-        AmbientSoundGenerator.stopSound()
+        try {
+            AmbientSoundGenerator.stopSound()
+        } catch (_: Exception) {}
 
-        totalSeconds = minutes * 60
-        remainingSeconds = minutes * 60
-        selectedSounds = sounds.filter { it != AmbientSoundType.NONE }.toSet()
+        val mins = if (minutes <= 0) 25 else minutes
+        totalSeconds = mins * 60
+        remainingSeconds = mins * 60
+        val cleanSounds = sounds.filter { it != AmbientSoundType.NONE }.toSet()
+        selectedSounds = cleanSounds
+        FocusStorage.saveSounds(appCtx, cleanSounds)
         strictMode = isStrict
         isActive = true
         isPaused = false
 
         if (selectedSounds.isNotEmpty()) {
-            AmbientSoundGenerator.setSounds(context, selectedSounds)
+            try {
+                AmbientSoundGenerator.setSounds(appCtx, selectedSounds)
+            } catch (_: Exception) {}
         }
 
-        VibrationUtil.vibrateTick(context)
-        FocusService.startService(context)
+        try {
+            VibrationUtil.vibrateTick(appCtx)
+        } catch (_: Exception) {}
+
+        FocusService.startService(appCtx)
+
+        if (!scope.isActive) {
+            scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+        }
 
         timerJob = scope.launch {
             var counter = 0
@@ -59,14 +74,14 @@ object FocusSessionManager {
                 if (!isPaused) {
                     remainingSeconds--
                     counter++
-                    // Периодически обновляем текст уведомления
+                    // Обновляем текст уведомления и медиа-состояние каждые 5 сек
                     if (counter % 5 == 0 || remainingSeconds <= 10) {
                         appContext?.let { FocusService.updateNotification(it) }
                     }
                 }
             }
             if (isActive && remainingSeconds <= 0) {
-                onSessionFinished(context)
+                onSessionFinished(appCtx)
             }
         }
     }
@@ -74,14 +89,18 @@ object FocusSessionManager {
     fun pauseSession(context: Context? = null) {
         if (!isActive) return
         isPaused = true
-        AmbientSoundGenerator.pauseAll()
+        try {
+            AmbientSoundGenerator.pauseAll()
+        } catch (_: Exception) {}
         (context ?: appContext)?.let { FocusService.updateNotification(it) }
     }
 
     fun resumeSession(context: Context? = null) {
         if (!isActive) return
         isPaused = false
-        AmbientSoundGenerator.resumeAll()
+        try {
+            AmbientSoundGenerator.resumeAll()
+        } catch (_: Exception) {}
         (context ?: appContext)?.let { FocusService.updateNotification(it) }
     }
 
@@ -89,8 +108,12 @@ object FocusSessionManager {
         if (sound == AmbientSoundType.NONE) {
             selectedSounds = emptySet()
             if (isActive && !isPaused) {
-                AmbientSoundGenerator.stopSound()
+                try {
+                    AmbientSoundGenerator.stopSound()
+                } catch (_: Exception) {}
             }
+            FocusStorage.saveSounds(context, emptySet())
+            appContext?.let { FocusService.updateNotification(it) }
             return
         }
 
@@ -100,9 +123,13 @@ object FocusSessionManager {
             selectedSounds + sound
         }
         selectedSounds = updated
+        FocusStorage.saveSounds(context, updated)
         if (isActive && !isPaused) {
-            AmbientSoundGenerator.setSounds(context, updated)
+            try {
+                AmbientSoundGenerator.setSounds(context, updated)
+            } catch (_: Exception) {}
         }
+        appContext?.let { FocusService.updateNotification(it) }
     }
 
     fun stopSession(context: Context? = null, completed: Boolean = false) {
@@ -110,8 +137,11 @@ object FocusSessionManager {
         timerJob = null
         isActive = false
         isPaused = false
-        AmbientSoundGenerator.stopSound()
-        (context ?: appContext)?.let { FocusService.stopService(it) }
+        try {
+            AmbientSoundGenerator.stopSound()
+        } catch (_: Exception) {}
+        val ctx = context ?: appContext
+        ctx?.let { FocusService.stopService(it) }
     }
 
     private fun onSessionFinished(context: Context) {
@@ -120,14 +150,16 @@ object FocusSessionManager {
 
         // Начисляем монеты за фокус
         if (earnedMinutes > 0) {
-            DailyTaskStorage.addCoins(context, earnedMinutes)
-            NotificationHistoryStorage.addNotification(
-                context,
-                title = "Сессия фокуса завершена! 🎯",
-                message = "Вы сохраняли концентрацию $earnedMinutes мин. Начислено +$earnedMinutes монет!",
-                type = "timer"
-            )
-            VibrationUtil.vibrateSuccess(context)
+            try {
+                DailyTaskStorage.addCoins(context, earnedMinutes)
+                NotificationHistoryStorage.addNotification(
+                    context,
+                    title = "Сессия фокуса завершена! 🎯",
+                    message = "Вы сохраняли концентрацию $earnedMinutes мин. Начислено +$earnedMinutes монет!",
+                    type = "timer"
+                )
+                VibrationUtil.vibrateSuccess(context)
+            } catch (_: Exception) {}
         }
     }
 }

@@ -1141,15 +1141,37 @@ class AppBlockAccessibilityService : AccessibilityService() {
                 lower.contains("recentapps") || lower.contains("tasksthumbnail")
     }
 
-    private fun isSystemPackage(pkg: String) =
-        pkg == applicationContext.packageName ||
-                pkg == "com.android.settings" ||
-                pkg == "com.android.systemui" ||
-                pkg.contains("launcher", ignoreCase = true) ||
-                pkg == YOUTUBE_SHORTS_PACKAGE ||
-                pkg == INSTAGRAM_REELS_PACKAGE ||
-                pkg == VK_CLIPS_PACKAGE ||
-                pkg == TWITCH_CLIPS_PACKAGE
+    private fun isSystemPackage(pkg: String): Boolean {
+        if (pkg == applicationContext.packageName) return true
+        if (pkg == YOUTUBE_SHORTS_PACKAGE || pkg == INSTAGRAM_REELS_PACKAGE ||
+            pkg == VK_CLIPS_PACKAGE || pkg == TWITCH_CLIPS_PACKAGE) return true
+
+        val lower = pkg.lowercase()
+        return lower == "com.android.settings" ||
+                lower == "com.android.systemui" ||
+                lower.contains("launcher") ||
+                lower.contains("home") ||
+                lower.contains("biometric") ||
+                lower.contains("fingerprint") ||
+                lower.contains("facelock") ||
+                lower.contains("auth") ||
+                lower.contains("trustagent") ||
+                lower.contains("keyguard") ||
+                lower.contains("lockscreen") ||
+                lower.contains("dialer") ||
+                lower.contains("incallui") ||
+                lower.contains("telecom") ||
+                lower.contains("telephony") ||
+                lower.contains("permissioncontroller") ||
+                lower.contains("packageinstaller") ||
+                lower.contains("inputmethod") ||
+                lower.contains("keyboard") ||
+                lower.contains("honeyboard") ||
+                lower.contains("samsungpass") ||
+                lower == "com.google.android.inputmethod.latin" ||
+                lower == "com.samsung.android.biometrics.app.setting" ||
+                lower == "com.samsung.android.authframework"
+    }
 
 
     override fun onInterrupt() {}

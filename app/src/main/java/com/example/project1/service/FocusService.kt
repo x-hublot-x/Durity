@@ -19,8 +19,10 @@ import android.os.IBinder
 import android.support.v4.media.MediaMetadataCompat
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
+import androidx.compose.ui.graphics.toArgb
 import androidx.core.app.NotificationCompat
 import com.example.project1.MainActivity
+import com.example.project1.ui.theme.ThemeManager
 import com.example.project1.util.AmbientSoundType
 
 class FocusService : Service() {
@@ -39,7 +41,9 @@ class FocusService : Service() {
         var isServiceRunning = false
             private set
 
-        private var cachedArtwork: Bitmap? = null
+        @Volatile
+        var currentInstance: FocusService? = null
+            private set
 
         fun startService(context: Context) {
             try {
@@ -57,47 +61,87 @@ class FocusService : Service() {
         fun updateNotification(context: Context) {
             if (!isServiceRunning || !FocusSessionManager.isActive) return
             try {
-                val intent = Intent(context, FocusService::class.java).apply {
-                    action = ACTION_UPDATE
-                }
-                context.startService(intent)
+                currentInstance?.updateNotificationDirectly()
             } catch (_: Exception) {}
         }
 
         fun stopService(context: Context) {
-            if (!isServiceRunning) return
             try {
-                val intent = Intent(context, FocusService::class.java).apply {
-                    action = ACTION_STOP
-                }
-                context.startService(intent)
+                currentInstance?.stopForeground(STOP_FOREGROUND_REMOVE)
+                currentInstance?.stopSelf()
+            } catch (_: Exception) {}
+            try {
+                context.stopService(Intent(context, FocusService::class.java))
             } catch (_: Exception) {}
         }
 
-        private fun getArtworkBitmap(): Bitmap {
-            cachedArtwork?.let { return it }
-            val size = 256
+        fun getArtworkBitmap(): Bitmap {
+            val accent = ThemeManager.currentAccent
+            val primaryArgb = accent.primary.toArgb()
+            val secondaryArgb = accent.secondary.toArgb()
+
+            val size = 320
             val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bitmap)
 
-            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            // Градиентный фон под цвет темы пользователя
+            val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 shader = LinearGradient(
                     0f, 0f, size.toFloat(), size.toFloat(),
-                    intArrayOf(0xFFFF6600.toInt(), 0xFFFF8000.toInt(), 0xFFFF4500.toInt()),
+                    intArrayOf(primaryArgb, secondaryArgb),
                     null,
                     Shader.TileMode.CLAMP
                 )
             }
-            canvas.drawRoundRect(0f, 0f, size.toFloat(), size.toFloat(), 48f, 48f, paint)
+            canvas.drawRoundRect(0f, 0f, size.toFloat(), size.toFloat(), 56f, 56f, bgPaint)
 
-            val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                textSize = 110f
-                textAlign = Paint.Align.CENTER
+            // Тонкая полупрозрачная рамка (glass effect)
+            val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeWidth = 3f
+                color = 0x33FFFFFF.toInt()
             }
-            val yPos = (size / 2f) - ((textPaint.descent() + textPaint.ascent()) / 2f)
-            canvas.drawText("🧘", size / 2f, yPos, textPaint)
+            canvas.drawRoundRect(1.5f, 1.5f, size - 1.5f, size - 1.5f, 56f, 56f, borderPaint)
 
-            cachedArtwork = bitmap
+            val cx = size / 2f
+            val cy = size / 2f
+
+            // Векторная отрисовка секундомера / таймера фокуса (без эмодзи)
+            val whiteStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = 0xFFFFFFFF.toInt()
+                style = Paint.Style.STROKE
+                strokeWidth = 10f
+                strokeCap = Paint.Cap.ROUND
+            }
+
+            // Внешний циферблат
+            val ringRadius = 68f
+            canvas.drawCircle(cx, cy, ringRadius, whiteStroke)
+
+            // Верхняя кнопка секундомера
+            val topBtnPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = 0xFFFFFFFF.toInt()
+                style = Paint.Style.FILL
+            }
+            canvas.drawRoundRect(cx - 10f, cy - ringRadius - 22f, cx + 10f, cy - ringRadius - 10f, 4f, 4f, topBtnPaint)
+
+            // Стрелки таймера (12 и 2 часа)
+            val handPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = 0xFFFFFFFF.toInt()
+                style = Paint.Style.STROKE
+                strokeWidth = 8f
+                strokeCap = Paint.Cap.ROUND
+            }
+            canvas.drawLine(cx, cy, cx, cy - 38f, handPaint)
+            canvas.drawLine(cx, cy, cx + 24f, cy - 14f, handPaint)
+
+            // Центральная точка
+            val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = 0xFFFFFFFF.toInt()
+                style = Paint.Style.FILL
+            }
+            canvas.drawCircle(cx, cy, 8f, dotPaint)
+
             return bitmap
         }
     }
@@ -108,6 +152,7 @@ class FocusService : Service() {
     override fun onCreate() {
         super.onCreate()
         isServiceRunning = true
+        currentInstance = this
         notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         createNotificationChannel()
         initMediaSession()
@@ -195,14 +240,14 @@ class FocusService : Service() {
         return START_STICKY
     }
 
-    private fun updateNotificationDirectly() {
+    fun updateNotificationDirectly() {
         try {
             val notification = buildMediaNotification()
             notificationManager.notify(NOTIFICATION_ID, notification)
         } catch (_: Exception) {}
     }
 
-    private fun buildMediaNotification(): Notification {
+    fun buildMediaNotification(): Notification {
         val isActive = FocusSessionManager.isActive
         val isPaused = FocusSessionManager.isPaused
         val remainingSec = FocusSessionManager.remainingSeconds
@@ -219,7 +264,7 @@ class FocusService : Service() {
         val timeFormatted = String.format("%02d:%02d", minutes, seconds)
 
         val soundTitle = if (selectedSounds.isEmpty() || selectedSounds.all { it == AmbientSoundType.NONE }) {
-            "Глубокая концентрация 🧘"
+            "Глубокая концентрация"
         } else {
             selectedSounds.filter { it != AmbientSoundType.NONE }.joinToString(" + ") { it.title }
         }
@@ -356,6 +401,9 @@ class FocusService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         isServiceRunning = false
+        if (currentInstance == this) {
+            currentInstance = null
+        }
         try {
             mediaSession?.apply {
                 isActive = false
