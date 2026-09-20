@@ -87,8 +87,10 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_OPEN_DAILY_SUMMARY = "EXTRA_OPEN_DAILY_SUMMARY"
+        const val EXTRA_OPEN_FOCUS = "EXTRA_OPEN_FOCUS"
         val openBlitzRequested = mutableStateOf(false)
         val openDailySummaryRequested = mutableStateOf(false)
+        val openFocusRequested = mutableStateOf(false)
     }
 
     private val requestNotificationPermissionLauncher = registerForActivityResult(
@@ -102,6 +104,9 @@ class MainActivity : ComponentActivity() {
         }
         if (intent?.getBooleanExtra(EXTRA_OPEN_DAILY_SUMMARY, false) == true) {
             openDailySummaryRequested.value = true
+        }
+        if (intent?.getBooleanExtra(EXTRA_OPEN_FOCUS, false) == true) {
+            openFocusRequested.value = true
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (!MathBlitzNotificationManager.hasNotificationPermission(this)) {
@@ -224,6 +229,9 @@ class MainActivity : ComponentActivity() {
         }
         if (intent?.getBooleanExtra(EXTRA_OPEN_DAILY_SUMMARY, false) == true) {
             openDailySummaryRequested.value = true
+        }
+        if (intent?.getBooleanExtra(EXTRA_OPEN_FOCUS, false) == true) {
+            openFocusRequested.value = true
         }
     }
 
@@ -437,6 +445,17 @@ fun MainScreen() {
                 showDailySummary = true
             }
             MainActivity.openDailySummaryRequested.value = false
+        }
+    }
+
+    LaunchedEffect(MainActivity.openFocusRequested.value) {
+        if (MainActivity.openFocusRequested.value) {
+            val focusPrefs = context.getSharedPreferences("timers_subtab_prefs", Context.MODE_PRIVATE)
+            focusPrefs.edit().putInt("last_selected_tab", 1).apply()
+            coroutineScope.launch {
+                pagerState.scrollToPage(1)
+            }
+            MainActivity.openFocusRequested.value = false
         }
     }
 

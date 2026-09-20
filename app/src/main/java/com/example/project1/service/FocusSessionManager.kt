@@ -15,6 +15,7 @@ import kotlinx.coroutines.*
 object FocusSessionManager {
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var timerJob: Job? = null
+    private var appContext: Context? = null
 
     var isActive by mutableStateOf(false)
         private set
@@ -30,6 +31,7 @@ object FocusSessionManager {
         private set
 
     fun startSession(context: Context, minutes: Int, sounds: Set<AmbientSoundType>, isStrict: Boolean = false) {
+        appContext = context.applicationContext
         stopSession(context, completed = false)
 
         totalSeconds = minutes * 60
@@ -44,12 +46,14 @@ object FocusSessionManager {
         }
 
         VibrationUtil.vibrateTick(context)
+        FocusService.startService(context)
 
         timerJob = scope.launch {
             while (isActive && remainingSeconds > 0) {
                 delay(1000)
                 if (!isPaused) {
                     remainingSeconds--
+                    appContext?.let { FocusService.updateNotification(it) }
                 }
             }
             if (isActive && remainingSeconds <= 0) {
@@ -58,16 +62,18 @@ object FocusSessionManager {
         }
     }
 
-    fun pauseSession() {
+    fun pauseSession(context: Context? = null) {
         if (!isActive) return
         isPaused = true
         AmbientSoundGenerator.pauseAll()
+        (context ?: appContext)?.let { FocusService.updateNotification(it) }
     }
 
-    fun resumeSession() {
+    fun resumeSession(context: Context? = null) {
         if (!isActive) return
         isPaused = false
         AmbientSoundGenerator.resumeAll()
+        (context ?: appContext)?.let { FocusService.updateNotification(it) }
     }
 
     fun toggleSound(context: Context, sound: AmbientSoundType) {
@@ -96,6 +102,7 @@ object FocusSessionManager {
         isActive = false
         isPaused = false
         AmbientSoundGenerator.stopSound()
+        (context ?: appContext)?.let { FocusService.stopService(it) }
     }
 
     private fun onSessionFinished(context: Context) {

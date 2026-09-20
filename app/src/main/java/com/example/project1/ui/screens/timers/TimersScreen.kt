@@ -223,6 +223,13 @@ fun TimersScreen(
     var showAutoAddDialog by remember { mutableStateOf(false) }
     var showAiTestDialog by remember { mutableStateOf(false) }
 
+    LaunchedEffect(Unit) {
+        val last = prefs.getInt("last_selected_tab", 0)
+        if (selectedTab != last) {
+            selectedTab = last
+        }
+    }
+
     LaunchedEffect(appsWithTimers.size) {
         if (appsWithTimers.isEmpty()) {
             isEditMode = false
