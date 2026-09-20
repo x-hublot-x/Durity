@@ -32,7 +32,11 @@ object FocusSessionManager {
 
     fun startSession(context: Context, minutes: Int, sounds: Set<AmbientSoundType>, isStrict: Boolean = false) {
         appContext = context.applicationContext
-        stopSession(context, completed = false)
+
+        // Останавливаем предыдущую работу корутины без отправки асинхронного ACTION_STOP в сервис
+        timerJob?.cancel()
+        timerJob = null
+        AmbientSoundGenerator.stopSound()
 
         totalSeconds = minutes * 60
         remainingSeconds = minutes * 60
@@ -49,11 +53,16 @@ object FocusSessionManager {
         FocusService.startService(context)
 
         timerJob = scope.launch {
+            var counter = 0
             while (isActive && remainingSeconds > 0) {
                 delay(1000)
                 if (!isPaused) {
                     remainingSeconds--
-                    appContext?.let { FocusService.updateNotification(it) }
+                    counter++
+                    // Периодически обновляем текст уведомления
+                    if (counter % 5 == 0 || remainingSeconds <= 10) {
+                        appContext?.let { FocusService.updateNotification(it) }
+                    }
                 }
             }
             if (isActive && remainingSeconds <= 0) {
@@ -122,4 +131,3 @@ object FocusSessionManager {
         }
     }
 }
-
