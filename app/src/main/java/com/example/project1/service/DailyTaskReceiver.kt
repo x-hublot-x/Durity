@@ -11,9 +11,9 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
-import com.example.project1.BuildConfig
 import com.example.project1.MainActivity
 import com.example.project1.R
+import com.example.project1.data.storage.GeminiApiKeyManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -24,6 +24,7 @@ class DailyTaskReceiver : BroadcastReceiver() {
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val taskChannelId = "daily_task_channel"
         val summaryChannelId = "daily_summary_channel"
+        val reportChannelId = "dopamine_report_channel"
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val taskChannel = NotificationChannel(
@@ -39,6 +40,13 @@ class DailyTaskReceiver : BroadcastReceiver() {
                 NotificationManager.IMPORTANCE_HIGH
             ).apply { description = "Уведомления с итогами прошедшего дня" }
             notificationManager.createNotificationChannel(summaryChannel)
+
+            val reportChannel = NotificationChannel(
+                reportChannelId,
+                "Дофаминовые отчеты",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply { description = "Еженедельные и ежемесячные отчеты Durity" }
+            notificationManager.createNotificationChannel(reportChannel)
         }
 
         val canNotify = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
@@ -78,6 +86,10 @@ class DailyTaskReceiver : BroadcastReceiver() {
                         type = "task"
                     )
                 }
+                // Фоновая проверка еженедельных и ежемесячных отчетов
+                WeeklyReportManager.checkAndGenerateWeeklyReportIfNeeded(context, notify = canNotify)
+                MonthlyReportManager.checkAndGenerateMonthlyReportIfNeeded(context, notify = canNotify)
+
                 DailyTaskNotificationManager.scheduleDailyTaskNotification(context)
             }
 
@@ -118,11 +130,65 @@ class DailyTaskReceiver : BroadcastReceiver() {
                     // В фоне генерируем и сохраняем итоги дня с советом ИИ
                     CoroutineScope(Dispatchers.IO).launch {
                         try {
-                            DailySummaryManager.checkAndGenerateDailySummary(context.applicationContext, BuildConfig.GEMINI_API_KEY)
+                            DailySummaryManager.checkAndGenerateDailySummary(context.applicationContext, GeminiApiKeyManager.getApiKey(context.applicationContext))
                         } catch (_: Exception) {}
                     }
                 }
                 DailyTaskNotificationManager.scheduleDailySummaryNotification(context)
+            }
+
+            DailyTaskNotificationManager.ACTION_WEEKLY_REPORT -> {
+                val report = WeeklyReportManager.checkAndGenerateWeeklyReportIfNeeded(context, notify = true)
+                val intentReport = Intent(context, MainActivity::class.java).apply {
+                    putExtra(MainActivity.EXTRA_OPEN_WEEKLY_REPORT, true)
+                    flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                }
+                val pendingIntentReport = PendingIntent.getActivity(
+                    context, 1003, intentReport,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+
+                val weeklyNotification = NotificationCompat.Builder(context, reportChannelId)
+                    .setSmallIcon(R.drawable.ic_youtube_shorts)
+                    .setContentTitle("📊 Твой дофаминовый отчет недели готов!")
+                    .setContentText("Ты сэкономил ${report.savedHours} ч жизни и продуктивнее ${report.percentile}% пользователей. Нажми для просмотра!")
+                    .setPriority(NotificationCompat.PRIORITY_HIGH)
+                    .setContentIntent(pendingIntentReport)
+                    .setAutoCancel(true)
+                    .build()
+
+                if (canNotify) {
+                    notificationManager.notify(1003, weeklyNotification)
+                }
+
+                DailyTaskNotificationManager.scheduleWeeklyReportNotification(context)
+            }
+
+            DailyTaskNotificationManager.ACTION_MONTHLY_REPORT -> {
+                val report = MonthlyReportManager.checkAndGenerateMonthlyReportIfNeeded(context, notify = true)
+                val intentReport = Intent(context, MainActivity::class.java).apply {
+                    putExtra(MainActivity.EXTRA_OPEN_MONTHLY_REPORT, true)
+                    flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                }
+                val pendingIntentReport = PendingIntent.getActivity(
+                    context, 1004, intentReport,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+
+                val monthlyNotification = NotificationCompat.Builder(context, reportChannelId)
+                    .setSmallIcon(R.drawable.ic_youtube_shorts)
+                    .setContentTitle("🏆 Твой ежемесячный дофаминовый отчет готов!")
+                    .setContentText("Итоги месяца: сэкономлено ${report.savedHours} ч! Ты в ТОП ${100 - report.percentile}%. Нажми для просмотра!")
+                    .setPriority(NotificationCompat.PRIORITY_HIGH)
+                    .setContentIntent(pendingIntentReport)
+                    .setAutoCancel(true)
+                    .build()
+
+                if (canNotify) {
+                    notificationManager.notify(1004, monthlyNotification)
+                }
+
+                DailyTaskNotificationManager.scheduleMonthlyReportNotification(context)
             }
 
             else -> {

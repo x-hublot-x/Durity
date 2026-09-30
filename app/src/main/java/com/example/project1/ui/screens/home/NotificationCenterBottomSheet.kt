@@ -52,6 +52,7 @@ fun NotificationCenterBottomSheet(
     onOpenDailyTask: (() -> Unit)? = null,
     onOpenBlitz: (() -> Unit)? = null,
     onOpenWeeklyReport: (() -> Unit)? = null,
+    onOpenMonthlyReport: (() -> Unit)? = null,
     hazeState: HazeState? = null
 ) {
     val context = LocalContext.current
@@ -255,6 +256,10 @@ fun NotificationCenterBottomSheet(
                                     "weekly_report" -> {
                                         onDismiss()
                                         onOpenWeeklyReport?.invoke()
+                                    }
+                                    "monthly_report" -> {
+                                        onDismiss()
+                                        onOpenMonthlyReport?.invoke()
                                     }
                                     else -> {}
                                 }

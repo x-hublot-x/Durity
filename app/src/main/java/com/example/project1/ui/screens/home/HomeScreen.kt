@@ -35,6 +35,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.example.project1.MainActivity
 import com.example.project1.R
 import com.example.project1.data.model.AppInfo
 import com.example.project1.data.model.BlitzSessionState
@@ -51,9 +52,11 @@ import com.example.project1.ui.theme.AppTheme
 import com.example.project1.BuildConfig
 import com.example.project1.data.storage.DailySummaryData
 import com.example.project1.data.storage.DailySummaryStorage
+import com.example.project1.data.storage.GeminiApiKeyManager
 import com.example.project1.data.storage.UserRatingStorage
 import com.example.project1.data.storage.WeeklyReportStorage
 import com.example.project1.service.DailySummaryManager
+import com.example.project1.service.MonthlyReportManager
 import com.example.project1.service.WeeklyReportManager
 import com.example.project1.ui.components.UserRatingDialog
 import com.example.project1.util.VibrationUtil
@@ -123,7 +126,7 @@ fun HomeScreen(
     var dailySummary by remember { mutableStateOf<DailySummaryData?>(DailySummaryStorage.getLatestSummary(context)) }
 
     LaunchedEffect(Unit) {
-        val summary = DailySummaryManager.checkAndGenerateDailySummary(context, BuildConfig.GEMINI_API_KEY)
+        val summary = DailySummaryManager.checkAndGenerateDailySummary(context, GeminiApiKeyManager.getApiKey(context))
         if (summary != null) {
             dailySummary = summary
         }
@@ -165,12 +168,20 @@ fun HomeScreen(
     var showRetestConfirm by remember { mutableStateOf(false) }
     var showNotificationCenter by remember { mutableStateOf(false) }
     var showWeeklyReportDialog by remember { mutableStateOf(false) }
+    var showMonthlyReportDialog by remember { mutableStateOf(false) }
     var hasUnreadNotifications by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) {
-        // Убеждаемся, что еженедельный отчет доступен
-        if (WeeklyReportStorage.getLatestReport(context) == null) {
-            WeeklyReportManager.generateOrUpdateReport(context)
+    LaunchedEffect(MainActivity.openWeeklyReportRequested.value) {
+        if (MainActivity.openWeeklyReportRequested.value) {
+            MainActivity.openWeeklyReportRequested.value = false
+            showWeeklyReportDialog = true
+        }
+    }
+
+    LaunchedEffect(MainActivity.openMonthlyReportRequested.value) {
+        if (MainActivity.openMonthlyReportRequested.value) {
+            MainActivity.openMonthlyReportRequested.value = false
+            showMonthlyReportDialog = true
         }
     }
 
@@ -308,33 +319,37 @@ fun HomeScreen(
 
                 // Колокольчик центра уведомлений с красной точкой
                 Box(
-                    modifier = Modifier
-                        .size(38.dp)
-                        .clip(CircleShape)
-                        .background(colors.surfaceElevated)
-                        .border(1.dp, colors.surfaceBorder, CircleShape)
-                        .clickable {
-                            VibrationUtil.vibrateTick(context)
-                            showNotificationCenter = true
-                            hasUnreadNotifications = false
-                        },
-                    contentAlignment = Alignment.Center
+                    modifier = Modifier.size(38.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Notifications,
-                        contentDescription = "Уведомления",
-                        tint = colors.textPrimary,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(CircleShape)
+                            .background(colors.surfaceElevated)
+                            .border(1.dp, colors.surfaceBorder, CircleShape)
+                            .clickable {
+                                VibrationUtil.vibrateTick(context)
+                                showNotificationCenter = true
+                                hasUnreadNotifications = false
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Notifications,
+                            contentDescription = "Уведомления",
+                            tint = colors.textPrimary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                     if (hasUnreadNotifications) {
                         Box(
                             modifier = Modifier
-                                .size(9.dp)
+                                .size(11.dp)
                                 .align(Alignment.TopEnd)
-                                .offset(x = (-2).dp, y = 2.dp)
+                                .offset(x = 2.dp, y = (-2).dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFFFF0000))
-                                .border(1.2.dp, colors.surfaceElevated, CircleShape)
+                                .background(Color(0xFFFF3B30))
+                                .border(1.5.dp, colors.surfaceElevated, CircleShape)
                         )
                     }
                 }
@@ -470,6 +485,7 @@ fun HomeScreen(
             onOpenDailyTask = onNavigateToDailyTask,
             onOpenBlitz = onOpenBlitz,
             onOpenWeeklyReport = { showWeeklyReportDialog = true },
+            onOpenMonthlyReport = { showMonthlyReportDialog = true },
             hazeState = hazeState
         )
     }
@@ -477,6 +493,12 @@ fun HomeScreen(
     if (showWeeklyReportDialog) {
         WeeklyDopamineReportDialog(
             onDismiss = { showWeeklyReportDialog = false }
+        )
+    }
+
+    if (showMonthlyReportDialog) {
+        MonthlyDopamineReportDialog(
+            onDismiss = { showMonthlyReportDialog = false }
         )
     }
 }

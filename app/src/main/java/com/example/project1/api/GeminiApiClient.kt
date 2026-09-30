@@ -7,11 +7,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 @Suppress("unused", "RedundantSuppression")
-class GeminiApiClient {
+class GeminiApiClient(private val apiKey: String = BuildConfig.GEMINI_API_KEY) {
 
     private val generativeModel = GenerativeModel(
         modelName = "gemini-3.5-flash",
-        apiKey = BuildConfig.GEMINI_API_KEY
+        apiKey = apiKey
     )
 
     suspend fun sendMessage(prompt: String): String = withContext(Dispatchers.IO) {

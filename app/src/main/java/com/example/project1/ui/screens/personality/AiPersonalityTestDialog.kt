@@ -153,7 +153,7 @@ fun AiPersonalityTestDialog(
                 try {
                     val generativeModel = GenerativeModel(
                         modelName = "gemini-3.5-flash",
-                        apiKey = BuildConfig.GEMINI_API_KEY
+                        apiKey = com.example.project1.data.storage.GeminiApiKeyManager.getApiKey(context)
                     )
 
                     val appsUsagePrompt = top5Apps.joinToString("\n") { app ->

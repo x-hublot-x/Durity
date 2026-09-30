@@ -88,9 +88,13 @@ class MainActivity : ComponentActivity() {
     companion object {
         const val EXTRA_OPEN_DAILY_SUMMARY = "EXTRA_OPEN_DAILY_SUMMARY"
         const val EXTRA_OPEN_FOCUS = "EXTRA_OPEN_FOCUS"
+        const val EXTRA_OPEN_WEEKLY_REPORT = "EXTRA_OPEN_WEEKLY_REPORT"
+        const val EXTRA_OPEN_MONTHLY_REPORT = "EXTRA_OPEN_MONTHLY_REPORT"
         val openBlitzRequested = mutableStateOf(false)
         val openDailySummaryRequested = mutableStateOf(false)
         val openFocusRequested = mutableStateOf(false)
+        val openWeeklyReportRequested = mutableStateOf(false)
+        val openMonthlyReportRequested = mutableStateOf(false)
     }
 
     private val requestNotificationPermissionLauncher = registerForActivityResult(
@@ -108,6 +112,12 @@ class MainActivity : ComponentActivity() {
         if (intent?.getBooleanExtra(EXTRA_OPEN_FOCUS, false) == true) {
             openFocusRequested.value = true
         }
+        if (intent?.getBooleanExtra(EXTRA_OPEN_WEEKLY_REPORT, false) == true) {
+            openWeeklyReportRequested.value = true
+        }
+        if (intent?.getBooleanExtra(EXTRA_OPEN_MONTHLY_REPORT, false) == true) {
+            openMonthlyReportRequested.value = true
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (!MathBlitzNotificationManager.hasNotificationPermission(this)) {
                 requestNotificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
@@ -118,6 +128,7 @@ class MainActivity : ComponentActivity() {
         ThemeManager.init(this)
         com.example.project1.ui.wallpaper.WallpaperManager.init(this)
         com.example.project1.data.storage.BlockMediaManager.init(this)
+        com.example.project1.service.DailyTaskNotificationManager.scheduleDailyNotification(this)
         enableEdgeToEdge()
 
         setContent {
@@ -232,6 +243,12 @@ class MainActivity : ComponentActivity() {
         }
         if (intent?.getBooleanExtra(EXTRA_OPEN_FOCUS, false) == true) {
             openFocusRequested.value = true
+        }
+        if (intent?.getBooleanExtra(EXTRA_OPEN_WEEKLY_REPORT, false) == true) {
+            openWeeklyReportRequested.value = true
+        }
+        if (intent?.getBooleanExtra(EXTRA_OPEN_MONTHLY_REPORT, false) == true) {
+            openMonthlyReportRequested.value = true
         }
     }
 
@@ -514,7 +531,7 @@ fun MainScreen() {
                         },
                         onOpenDailySummary = {
                             coroutineScope.launch {
-                                val s = DailySummaryManager.checkAndGenerateDailySummary(context, BuildConfig.GEMINI_API_KEY)
+                                val s = DailySummaryManager.checkAndGenerateDailySummary(context, com.example.project1.data.storage.GeminiApiKeyManager.getApiKey(context))
                                 dailySummaryData = s ?: DailySummaryStorage.getLatestSummary(context)
                                 showDailySummary = true
                             }

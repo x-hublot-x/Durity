@@ -99,7 +99,7 @@ $personality
         try {
             val generativeModel = GenerativeModel(
                 modelName = "gemini-3.5-flash-lite",
-                apiKey = BuildConfig.GEMINI_API_KEY
+                apiKey = com.example.project1.data.storage.GeminiApiKeyManager.getApiKey(context)
             )
             val response: GenerateContentResponse = generativeModel.generateContent(prompt)
             val rawText = response.text ?: ""

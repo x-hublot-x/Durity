@@ -132,7 +132,7 @@ fun DailyTaskScreen(
     var showNewStreakNumber by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        task = generateDailyTaskWithAi(context, BuildConfig.GEMINI_API_KEY)
+        task = generateDailyTaskWithAi(context, com.example.project1.data.storage.GeminiApiKeyManager.getApiKey(context))
     }
 
     LaunchedEffect(showCoinAnimation) {
@@ -512,7 +512,7 @@ fun DailyTaskScreen(
                                 val resp = checkAnswerWithAi(
                                     task = currentTask,
                                     userAnswer = answerText,
-                                    apiKey = BuildConfig.GEMINI_API_KEY
+                                    apiKey = com.example.project1.data.storage.GeminiApiKeyManager.getApiKey(context)
                                 )
                                 checkResult = resp
                                 if (resp.result == CheckResult.CORRECT) {
@@ -585,7 +585,7 @@ fun DailyTaskScreen(
                                 if (!isLoadingHint && hintText.isEmpty()) {
                                     scope.launch {
                                         isLoadingHint = true
-                                        hintText = getHintForTask(currentTask, BuildConfig.GEMINI_API_KEY)
+                                        hintText = getHintForTask(currentTask, com.example.project1.data.storage.GeminiApiKeyManager.getApiKey(context))
                                         isLoadingHint = false
                                         showHint = true
                                     }

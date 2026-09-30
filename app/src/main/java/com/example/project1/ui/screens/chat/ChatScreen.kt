@@ -637,7 +637,7 @@ fun ChatConversationScreen(
     val generativeModel = remember(session.id) {
         GenerativeModel(
             modelName = "gemini-3.5-flash-lite",
-            apiKey = BuildConfig.GEMINI_API_KEY,
+            apiKey = com.example.project1.data.storage.GeminiApiKeyManager.getApiKey(context),
             systemInstruction = if (systemPrompt.isNotEmpty())
                 com.google.ai.client.generativeai.type.content { text(systemPrompt) }
             else null
@@ -760,7 +760,7 @@ fun ChatConversationScreen(
                 try {
                     val titleModel = GenerativeModel(
                         modelName = "gemini-3.5-flash-lite",
-                        apiKey = BuildConfig.GEMINI_API_KEY
+                        apiKey = com.example.project1.data.storage.GeminiApiKeyManager.getApiKey(context)
                     )
                     val prompt = "Придумай короткое название (3–5 слов) для чата, тема которого: \"$textToSend\". Только название, без кавычек и лишнего текста."
                     val titleResponse = withContext(Dispatchers.IO) { titleModel.generateContent(prompt) }

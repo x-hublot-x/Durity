@@ -11,9 +11,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.rounded.BarChart
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -126,9 +127,16 @@ fun StatsScreen(
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        // ── Баннер Еженедельного отчета (Durity Wrapped) ─────────────────────
+        // ── Баннеры Дофаминовых отчетов (Недельный и Месячный) ───────────────
         var showWeeklyReport by remember { mutableStateOf(false) }
+        var showMonthlyReport by remember { mutableStateOf(false) }
 
+        LaunchedEffect(Unit) {
+            com.example.project1.service.WeeklyReportManager.checkAndGenerateWeeklyReportIfNeeded(context, notify = false)
+            com.example.project1.service.MonthlyReportManager.checkAndGenerateMonthlyReportIfNeeded(context, notify = false)
+        }
+
+        // Еженедельный отчет
         Card(
             onClick = {
                 VibrationUtil.vibrateTick(context)
@@ -183,9 +191,72 @@ fun StatsScreen(
             }
         }
 
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // Ежемесячный отчет
+        Card(
+            onClick = {
+                VibrationUtil.vibrateTick(context)
+                showMonthlyReport = true
+            },
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = colors.surface),
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, Color(0xFFFFD54F).copy(alpha = 0.45f), RoundedCornerShape(18.dp))
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFFFFD54F).copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.EmojiEvents,
+                            contentDescription = null,
+                            tint = Color(0xFFFFD54F),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    Column {
+                        Text(
+                            text = "Ежемесячный дофаминовый отчет",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.textPrimary
+                        )
+                        Text(
+                            text = "Месячные достижения, титул и статистика",
+                            fontSize = 12.sp,
+                            color = colors.textSecondary
+                        )
+                    }
+                }
+                Text(text = "›", fontSize = 24.sp, color = Color(0xFFFFD54F), fontWeight = FontWeight.Light)
+            }
+        }
+
         if (showWeeklyReport) {
             com.example.project1.ui.screens.home.WeeklyDopamineReportDialog(
                 onDismiss = { showWeeklyReport = false }
+            )
+        }
+
+        if (showMonthlyReport) {
+            com.example.project1.ui.screens.home.MonthlyDopamineReportDialog(
+                onDismiss = { showMonthlyReport = false }
             )
         }
 

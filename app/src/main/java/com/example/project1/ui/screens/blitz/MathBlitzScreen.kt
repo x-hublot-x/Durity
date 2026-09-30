@@ -276,7 +276,7 @@ fun MathBlitzScreen(
             val (isCorrect, hint) = MathBlitzRepository.checkBlitzAnswer(
                 task = currentTask,
                 userAnswer = answerText,
-                apiKey = BuildConfig.GEMINI_API_KEY
+                apiKey = com.example.project1.data.storage.GeminiApiKeyManager.getApiKey(context)
             )
             isChecking = false
 

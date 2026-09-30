@@ -130,7 +130,7 @@ fun MathBlitzSetupScreen(
             )
             // Предзагрузка задач в фоне прямо во время обратного отсчета 3-2-1!
             val preloadedTasksDeferred = async(Dispatchers.IO) {
-                MathBlitzRepository.generateBlitzTasks(config, BuildConfig.GEMINI_API_KEY)
+                MathBlitzRepository.generateBlitzTasks(config, com.example.project1.data.storage.GeminiApiKeyManager.getApiKey(context))
             }
 
             val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {

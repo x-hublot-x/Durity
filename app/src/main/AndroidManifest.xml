@@ -7,6 +7,8 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
@@ -338,7 +340,17 @@
 
         <receiver
             android:name=".service.DailyTaskReceiver"
-            android:exported="false" />
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.example.project1.ACTION_DAILY_TASK" />
+                <action android:name="com.example.project1.ACTION_DAILY_SUMMARY" />
+                <action android:name="com.example.project1.ACTION_WEEKLY_REPORT" />
+                <action android:name="com.example.project1.ACTION_MONTHLY_REPORT" />
+            </intent-filter>
+        </receiver>
 
         <receiver
             android:name=".service.MathBlitzTimeoutReceiver"

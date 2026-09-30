@@ -39,6 +39,7 @@ import coil.decode.GifDecoder
 import coil.decode.ImageDecoderDecoder
 import com.example.project1.R
 import com.example.project1.data.storage.BlockMediaManager
+import com.example.project1.data.storage.GeminiApiKeyManager
 import com.example.project1.ui.theme.AccentTheme
 import com.example.project1.ui.theme.AppTheme
 import com.example.project1.ui.theme.BottomBarStyle
@@ -47,6 +48,7 @@ import com.example.project1.ui.wallpaper.WallpaperCatalog
 import com.example.project1.ui.wallpaper.WallpaperManager
 import com.example.project1.ui.wallpaper.WallpaperType
 import androidx.compose.material.icons.rounded.Animation
+import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.VolumeUp
 
 enum class SettingsSubScreen {
@@ -55,7 +57,8 @@ enum class SettingsSubScreen {
     BOTTOM_BAR,
     WALLPAPERS,
     BLOCK_GIF,
-    BLOCK_SOUND
+    BLOCK_SOUND,
+    GEMINI_API_KEY
 }
 
 @Composable
@@ -150,6 +153,11 @@ fun SettingsScreen(
             }
             SettingsSubScreen.BLOCK_SOUND -> {
                 BlockSoundScreen(
+                    onBack = { currentSubScreen = SettingsSubScreen.MAIN }
+                )
+            }
+            SettingsSubScreen.GEMINI_API_KEY -> {
+                GeminiApiKeyScreen(
                     onBack = { currentSubScreen = SettingsSubScreen.MAIN }
                 )
             }
@@ -582,6 +590,103 @@ fun SettingsScreen(
                                     )
                                     Text(
                                         text = "11 звуковых эффектов",
+                                        fontSize = 12.sp,
+                                        color = colors.textSecondary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Открыть",
+                                tint = colors.textSecondary,
+                                modifier = Modifier
+                                    .size(18.dp)
+                                    .rotate(180f)
+                                    .padding(start = 4.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // ── 6. Раздел: Ключ Gemini API ───────────────────────────────
+                    val isCustomKey = remember(currentSubScreen) { GeminiApiKeyManager.isCustomKeySet(context) }
+                    val maskedKey = remember(currentSubScreen) { GeminiApiKeyManager.getMaskedKey(context) }
+
+                    Card(
+                        onClick = { currentSubScreen = SettingsSubScreen.GEMINI_API_KEY },
+                        shape = RoundedCornerShape(22.dp),
+                        colors = CardDefaults.cardColors(containerColor = colors.surface.copy(alpha = 0.92f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(18.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(52.dp)
+                                        .clip(RoundedCornerShape(14.dp))
+                                        .background(
+                                            Brush.linearGradient(
+                                                listOf(Color(0xFF1E2640), Color(0xFF131828))
+                                            )
+                                        )
+                                        .border(1.dp, if (isCustomKey) Color(0xFF69F0AE).copy(alpha = 0.4f) else colors.primary.copy(alpha = 0.3f), RoundedCornerShape(14.dp)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Key,
+                                        contentDescription = null,
+                                        tint = if (isCustomKey) Color(0xFF69F0AE) else colors.primary,
+                                        modifier = Modifier.size(26.dp)
+                                    )
+                                }
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Text(
+                                            text = "Ключ Gemini API",
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = colors.textPrimary
+                                        )
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(if (isCustomKey) Color(0xFF69F0AE).copy(alpha = 0.2f) else colors.primary.copy(alpha = 0.2f))
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = if (isCustomKey) "Свой" else "Дефолт",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isCustomKey) Color(0xFF69F0AE) else colors.primary
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = maskedKey,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = if (isCustomKey) Color(0xFF69F0AE) else colors.primary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = if (isCustomKey) "Личный ключ активен" else "Инструкция и настройка ключа",
                                         fontSize = 12.sp,
                                         color = colors.textSecondary,
                                         maxLines = 1,
